@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base (compact) -->
+    <dimen name="content_padding">16dp</dimen>
+    <dimen name="nav_item_min_width">80dp</dimen>
+</resources>

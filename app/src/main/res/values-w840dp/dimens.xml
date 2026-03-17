@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Expanded width (e.g. tablet landscape) -->
+    <dimen name="content_padding">32dp</dimen>
+    <dimen name="nav_item_min_width">160dp</dimen>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Medium width (e.g. tablet portrait, large unfolded) -->
+    <dimen name="content_padding">24dp</dimen>
+    <dimen name="nav_item_min_width">120dp</dimen>
+</resources>
