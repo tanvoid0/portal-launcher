@@ -7,6 +7,9 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+# Per-developer state: records which local emulator/device was last selected,
+# including an absolute path containing the developer's username.
+/.idea/deploymentTargetSelector.xml
 .DS_Store
 /build
 build/

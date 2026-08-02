@@ -23,12 +23,20 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Separate package so a debug build can be installed alongside the
+            // release one — you keep a working home screen while testing.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // signingConfig: see PRODUCTION_PLAN.md phase 9.
         }
     }
 
@@ -36,19 +44,38 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 
     buildFeatures {
         compose = true
         buildConfig = true
     }
+
+    lint {
+        warningsAsErrors = true
+        abortOnError = true
+        // No baseline: lint currently passes clean, and an empty baseline is only a
+        // place for debt to accumulate silently. If real deferred debt ever appears,
+        // add `baseline = file("lint-baseline.xml")` and ./gradlew updateLintBaseline.
+        // Raising targetSdk is its own reviewed task (SDK Upgrade Assistant, one
+        // API level at a time, then re-test overlay/notification/home behaviour).
+        // It must not happen as a side effect of turning lint gating on.
+        disable += "OldTargetApi"
+        // Dependency-freshness checks hit the network and fire whenever anything
+        // upstream publishes, so with warningsAsErrors they break the build for
+        // reasons that have nothing to do with the commit. Updating deps is a
+        // scheduled job, not a build gate.
+        disable += setOf("GradleDependency", "AndroidGradlePluginVersion", "NewerVersionAvailable")
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
     implementation(libs.material)
 
     val bom = platform(libs.androidx.compose.bom)
@@ -67,6 +94,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore)
+    implementation(libs.mlkit.genai.prompt)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

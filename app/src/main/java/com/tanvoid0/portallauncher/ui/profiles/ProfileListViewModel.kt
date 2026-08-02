@@ -19,12 +19,12 @@ class ProfileListViewModel(application: Application) : AndroidViewModel(applicat
     val profiles: StateFlow<List<ProfileEntity>> = profileRepository.getAllProfiles()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val defaultProfileId: StateFlow<String?> = preferencesRepository.defaultProfileId
+    val activeProfileId: StateFlow<String?> = preferencesRepository.activeProfileId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    fun setDefaultProfile(profileId: String) {
+    fun setActiveProfile(profileId: String) {
         viewModelScope.launch {
-            preferencesRepository.setDefaultProfileId(profileId)
+            preferencesRepository.setActiveProfileId(profileId)
         }
     }
 

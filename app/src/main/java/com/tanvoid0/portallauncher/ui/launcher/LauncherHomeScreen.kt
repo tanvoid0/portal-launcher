@@ -1,13 +1,6 @@
 package com.tanvoid0.portallauncher.ui.launcher
 
-import android.app.WallpaperManager
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.Drawable
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -17,16 +10,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -40,45 +34,46 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.tanvoid0.portallauncher.data.LaunchableApp
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val ICON_SIZE_PX = 96
 private const val PINNED_APP_COUNT = 8
 private const val HOME_GRID_COLUMNS = 4
+private val ICON_SIZE = 48.dp
+private val CELL_SIZE = 56.dp
 
 // Preferred dock apps in order: Phone, Messages, Camera, Play Store (app drawer is added separately)
 private val DOCK_PACKAGES = listOf(
@@ -88,13 +83,7 @@ private val DOCK_PACKAGES = listOf(
     listOf("com.android.vending") // Play Store
 )
 
-data class AppItem(
-    val packageName: String,
-    val label: String,
-    val icon: ImageBitmap?
-)
-
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LauncherHomeScreen(
     modifier: Modifier = Modifier,
@@ -102,331 +91,378 @@ fun LauncherHomeScreen(
     onOpenProfiles: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
-    val context = LocalContext.current
-    val pm = context.packageManager
     val uiState by viewModel.uiState.collectAsState()
     var appDrawerOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var wallpaperBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
-    LaunchedEffect(Unit) {
-        val apps = withContext(Dispatchers.Default) { loadLaunchableApps(pm) }
-        viewModel.setAppItems(apps)
-    }
-
-    LaunchedEffect(Unit) {
-        wallpaperBitmap = withContext(Dispatchers.Default) {
-            loadWallpaperBitmap(context)?.asImageBitmap()
-        }
-    }
-
-    if (uiState.loading) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
-        }
-        return
-    }
-
-    val apps = uiState.appItems
+    val apps = uiState.apps
+    // ponytail: "pinned" is still the first N alphabetically. Phase 3 backs this
+    // with the home_item table so the user actually chooses and reorders them.
     val pinnedApps = apps.take(PINNED_APP_COUNT)
-    val dockApps = resolveDockApps(apps)
+    val dockApps = remember(apps) { resolveDockApps(apps) }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        // System wallpaper as background (only on home screen)
-        wallpaperBitmap?.let { bitmap ->
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+    // The system wallpaper shows through the window itself (windowShowWallpaper in
+    // Theme.PortalLauncher), so live wallpapers and parallax work and we hold no
+    // bitmap of our own.
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+        ) {
+            SearchPill(
+                // Phase 4 replaces this with a real query field.
+                onClick = { appDrawerOpen = true },
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
             )
-        }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-        // ——— Search pill (Pixel-style) ———
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
-        ) {
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                readOnly = true,
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                placeholder = {
-                    Text(
-                        "Search apps, contacts & more",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
-
-        // Profile chips only when user has multiple profiles to switch between
-        if (uiState.profiles.size > 1) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                uiState.profiles.forEach { profile ->
-                    FilterChip(
-                        selected = uiState.activeProfile?.id == profile.id,
-                        onClick = { viewModel.setDefaultProfile(profile.id) },
-                        label = { Text(profile.name) }
-                    )
-                }
-            }
-        }
-
-        // ——— At-a-glance / widget placeholder ———
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .height(72.dp),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val dateTime = remember { SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date()) }
-                Text(
-                    text = dateTime,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // ——— Pinned apps grid (icon + label, no cards) ———
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(HOME_GRID_COLUMNS),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            items(pinnedApps, key = { it.packageName }) { app ->
-                AppIconCell(
-                    app = app,
-                    onClick = {
-                        pm.getLaunchIntentForPackage(app.packageName)?.let { intent ->
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
-                        }
-                    }
-                )
-            }
-        }
-
-        // ——— Dock (4 apps + app drawer) ———
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-            shadowElevation = 6.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                dockApps.forEach { app ->
-                    DockIcon(
-                        app = app,
-                        onClick = {
-                            pm.getLaunchIntentForPackage(app.packageName)?.let { intent ->
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }
-                        }
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .clickable { appDrawerOpen = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Apps,
-                        contentDescription = "App drawer",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-
-    // ——— App drawer ———
-    if (appDrawerOpen) {
-        ModalBottomSheet(
-            onDismissRequest = { appDrawerOpen = false },
-            sheetState = sheetState,
-            dragHandle = null,
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Text(
-                    "Apps",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                )
+            // Profile chips only when there is something to switch between.
+            if (uiState.profiles.size > 1) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    DrawerShortcut(
-                        icon = Icons.Default.Person,
-                        label = "Profiles",
-                        onClick = { appDrawerOpen = false; onOpenProfiles() }
-                    )
-                    DrawerShortcut(
-                        icon = Icons.Default.Settings,
-                        label = "Settings",
-                        onClick = { appDrawerOpen = false; onOpenSettings() }
-                    )
-                }
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 80.dp),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.heightIn(max = 420.dp)
-                ) {
-                    items(apps, key = { it.packageName }) { app ->
-                        AppIconCell(
-                            app = app,
-                            onClick = {
-                                appDrawerOpen = false
-                                pm.getLaunchIntentForPackage(app.packageName)?.let { intent ->
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    context.startActivity(intent)
-                                }
-                            }
+                    uiState.profiles.forEach { profile ->
+                        FilterChip(
+                            selected = uiState.activeProfile?.id == profile.id,
+                            onClick = { viewModel.setActiveProfile(profile.id) },
+                            label = { Text(profile.name) }
                         )
                     }
                 }
             }
+
+            AtAGlanceCard(modifier = Modifier.padding(horizontal = 24.dp))
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(HOME_GRID_COLUMNS),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                items(pinnedApps, key = { it.key }) { app ->
+                    AppIconCell(
+                        app = app,
+                        viewModel = viewModel,
+                        onClick = { viewModel.launch(app) },
+                        onWallpaper = true
+                    )
+                }
+            }
+
+            Dock(
+                apps = dockApps,
+                viewModel = viewModel,
+                onOpenDrawer = { appDrawerOpen = true }
+            )
+        }
+
+        if (appDrawerOpen) {
+            ModalBottomSheet(
+                onDismissRequest = { appDrawerOpen = false },
+                sheetState = sheetState,
+                dragHandle = null,
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                AppDrawerContent(
+                    apps = apps,
+                    viewModel = viewModel,
+                    onLaunch = { app ->
+                        appDrawerOpen = false
+                        viewModel.launch(app)
+                    },
+                    onOpenProfiles = { appDrawerOpen = false; onOpenProfiles() },
+                    onOpenSettings = { appDrawerOpen = false; onOpenSettings() }
+                )
+            }
         }
     }
+}
+
+/**
+ * One clickable, screen-reader-visible target that carries the label it contains.
+ *
+ * The explicit `mergeDescendants` states the intent rather than relying on it: a
+ * cell is one thing to tap and should be one thing to focus, which is what the
+ * Material components do internally.
+ *
+ * Not verified end to end. `uiautomator dump` cannot check this — it reports
+ * Compose's *unmerged* semantics tree, so labels always appear on separate nodes
+ * there whether merging is on or not. Confirming what TalkBack actually announces
+ * needs the Compose UI tests in phase 8 (merged tree, `assertHasClickAction`).
+ */
+private fun Modifier.clickableCell(onClick: () -> Unit): Modifier =
+    clickable(role = Role.Button, onClick = onClick)
+        .semantics(mergeDescendants = true) {}
+
+/**
+ * Looks like a search field but is a button, and is announced as one. The old
+ * version was a read-only [androidx.compose.material3.OutlinedTextField], which
+ * told screen readers it was editable text and then did nothing at all.
+ */
+@Composable
+private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {},
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Search apps",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
 @Composable
+private fun AtAGlanceCard(modifier: Modifier = Modifier) {
+    // Re-formats every minute; the previous version formatted once and then showed
+    // yesterday's date forever.
+    val today by produceState(formatToday()) {
+        while (true) {
+            delay(60_000)
+            value = formatToday()
+        }
+    }
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(72.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = today,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun formatToday(): String =
+    SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date())
+
+@Composable
+private fun Dock(
+    apps: List<LaunchableApp>,
+    viewModel: LauncherViewModel,
+    onOpenDrawer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                // Without this the dock sits under the navigation bar: edge-to-edge
+                // is mandatory from targetSdk 35 and cannot be opted out of.
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            apps.forEach { app ->
+                AppIcon(
+                    app = app,
+                    viewModel = viewModel,
+                    onClick = { viewModel.launch(app) }
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(CELL_SIZE)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clickableCell(onOpenDrawer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Apps,
+                    contentDescription = "App drawer",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppDrawerContent(
+    apps: List<LaunchableApp>,
+    viewModel: LauncherViewModel,
+    onLaunch: (LaunchableApp) -> Unit,
+    onOpenProfiles: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 32.dp)
+    ) {
+        Text(
+            "Apps",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            DrawerShortcut(Icons.Default.Person, "Profiles", onOpenProfiles)
+            DrawerShortcut(Icons.Default.Settings, "Settings", onOpenSettings)
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 80.dp),
+            contentPadding = PaddingValues(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.heightIn(max = 420.dp)
+        ) {
+            items(apps, key = { it.key }) { app ->
+                AppIconCell(
+                    app = app,
+                    viewModel = viewModel,
+                    onClick = { onLaunch(app) },
+                    onWallpaper = false
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Icon plus label, for grids.
+ *
+ * [onWallpaper] must be true on the home screen and false in the app drawer: the
+ * drawer sits on an opaque sheet where white-on-white would disappear, and the home
+ * screen sits on the wallpaper where a theme colour would.
+ */
+@Composable
 private fun AppIconCell(
-    app: AppItem,
+    app: LaunchableApp,
+    viewModel: LauncherViewModel,
     onClick: () -> Unit,
+    onWallpaper: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .clickable(onClick = onClick)
+            .clickableCell(onClick)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-            if (app.icon != null) {
-                Image(
-                    bitmap = app.icon,
-                    contentDescription = app.label,
-                    modifier = Modifier.size(48.dp)
-                )
-            } else {
-                Text(
-                    text = app.label.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
+        AppIcon(app = app, viewModel = viewModel, onClick = null)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = app.label,
-            style = MaterialTheme.typography.labelSmall,
+            style = if (onWallpaper) {
+                MaterialTheme.typography.labelSmall.merge(OnWallpaperTextStyle)
+            } else {
+                MaterialTheme.typography.labelSmall
+            },
+            color = if (onWallpaper) Color.Unspecified else MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
+/**
+ * Home-screen labels sit directly on the user's wallpaper, which can be any colour
+ * at all, so no theme colour is legible against it — `onSurface` is near-black in a
+ * light scheme and vanishes on a dark photo. White plus a soft shadow is what every
+ * launcher does, and it survives both extremes.
+ */
+private val OnWallpaperTextStyle = TextStyle(
+    color = Color.White,
+    shadow = Shadow(color = Color.Black.copy(alpha = 0.75f), blurRadius = 6f)
+)
+
+/**
+ * Bare icon. Pass a null [onClick] when an ancestor is already clickable, so the
+ * cell exposes one accessibility target instead of two.
+ */
 @Composable
-private fun DockIcon(
-    app: AppItem,
-    onClick: () -> Unit,
+private fun AppIcon(
+    app: LaunchableApp,
+    viewModel: LauncherViewModel,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
+    val icon = rememberAppIcon(app, viewModel)
     Box(
-        modifier = modifier.size(56.dp).clickable(onClick = onClick),
+        modifier = modifier
+            .size(CELL_SIZE)
+            .then(if (onClick != null) Modifier.clickableCell(onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
-        if (app.icon != null) {
+        if (icon != null) {
             Image(
-                bitmap = app.icon,
-                contentDescription = app.label,
-                modifier = Modifier.size(48.dp)
+                bitmap = icon,
+                contentDescription = if (onClick != null) app.label else null,
+                modifier = Modifier.size(ICON_SIZE)
             )
         } else {
+            // Placeholder while the drawable rasterises, and fallback if it fails.
             Text(
                 text = app.label.take(1).uppercase(),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
             )
         }
     }
+}
+
+/** Resolves the icon at real device density, off the main thread, only when composed. */
+@Composable
+private fun rememberAppIcon(
+    app: LaunchableApp,
+    viewModel: LauncherViewModel,
+    size: Dp = ICON_SIZE
+): ImageBitmap? {
+    val sizePx = with(LocalDensity.current) { size.roundToPx() }
+    return produceState<ImageBitmap?>(null, app.key, sizePx) {
+        value = viewModel.loadIcon(app, sizePx)
+    }.value
 }
 
 @Composable
@@ -439,18 +475,18 @@ private fun DrawerShortcut(
     Column(
         modifier = modifier
             .width(72.dp)
-            .clickable(onClick = onClick)
+            .clickableCell(onClick)
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(ICON_SIZE)
                 .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -463,61 +499,13 @@ private fun DrawerShortcut(
     }
 }
 
-/** Pinned dock: Phone, Messages, Camera, Play Store (only includes installed apps). */
-private fun resolveDockApps(apps: List<AppItem>): List<AppItem> {
-    val byPackage = apps.associateBy { it.packageName }
+/**
+ * Dock: Phone, Messages, Camera, Play Store — whichever of each candidate list is
+ * installed. Personal profile only; a work-profile dialler is not what the dock wants.
+ */
+private fun resolveDockApps(apps: List<LaunchableApp>): List<LaunchableApp> {
+    val byPackage = apps.filterNot { it.isWorkProfile }.associateBy { it.packageName }
     return DOCK_PACKAGES.mapNotNull { candidates ->
-        candidates.firstOrNull { byPackage.containsKey(it) }?.let { byPackage[it] }
+        candidates.firstNotNullOfOrNull { byPackage[it] }
     }
-}
-
-private fun loadLaunchableApps(pm: PackageManager): List<AppItem> {
-    val mainIntent = Intent(Intent.ACTION_MAIN).apply {
-        addCategory(Intent.CATEGORY_LAUNCHER)
-    }
-    val resolveInfos = pm.queryIntentActivities(mainIntent, PackageManager.MATCH_ALL)
-    return resolveInfos
-        .map { ri ->
-            val label = ri.loadLabel(pm)?.toString() ?: ri.activityInfo.packageName
-            val drawable = try { ri.loadIcon(pm) } catch (_: Exception) { null }
-            val icon = drawable?.toImageBitmap()
-            AppItem(
-                packageName = ri.activityInfo.packageName,
-                label = label,
-                icon = icon
-            )
-        }
-        .sortedBy { it.label.lowercase() }
-}
-
-private const val WALLPAPER_MAX_DIM = 1080
-
-private fun loadWallpaperBitmap(context: Context): Bitmap? {
-    return try {
-        val wm = WallpaperManager.getInstance(context)
-        val drawable = wm.drawable ?: return null
-        val dm = context.resources.displayMetrics
-        var width = dm.widthPixels
-        var height = dm.heightPixels
-        if (width > WALLPAPER_MAX_DIM || height > WALLPAPER_MAX_DIM) {
-            val scale = minOf(WALLPAPER_MAX_DIM.toFloat() / width, WALLPAPER_MAX_DIM.toFloat() / height)
-            width = (width * scale).toInt().coerceAtLeast(1)
-            height = (height * scale).toInt().coerceAtLeast(1)
-        }
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, width, height)
-        drawable.draw(canvas)
-        bitmap
-    } catch (_: Exception) {
-        null
-    }
-}
-
-private fun Drawable.toImageBitmap(size: Int = ICON_SIZE_PX): ImageBitmap {
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    setBounds(0, 0, size, size)
-    draw(canvas)
-    return bitmap.asImageBitmap()
 }

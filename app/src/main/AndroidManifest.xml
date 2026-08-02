@@ -2,21 +2,40 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Overlay (greyscale filter, app blocker). User must grant at runtime. -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+      Package visibility (API 30+). Declaring the launcher intent is enough to
+      enumerate launchable apps via LauncherApps / PackageManager, and it needs
+      no QUERY_ALL_PACKAGES — which would drag in a Play declaration form and is
+      a common review rejection. Only add QUERY_ALL_PACKAGES if we ever need to
+      see packages that have no launcher activity.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <!--
+      Permissions are declared in the phase that first uses them, so review never
+      sees a permission with no implementation behind it:
+        SYSTEM_ALERT_WINDOW + FOREGROUND_SERVICE_SPECIAL_USE -> app blocker overlay
+        POST_NOTIFICATIONS                                   -> blocker/scheduler notices
+      See PRODUCTION_PLAN.md phase 6.
+    -->
 
     <application
         android:name=".PortalLauncherApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.PortalLauncher">
+        android:theme="@style/Theme.PortalLauncher"
+        tools:ignore="UnusedAttribute"><!-- enableOnBackInvokedCallback is API 33+; older devices ignore it -->
 
         <!-- Launcher: MAIN + HOME + DEFAULT so app can be set as default home. -->
         <activity

@@ -10,8 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -39,9 +42,13 @@ fun ProfileListScreen(
     viewModel: ProfileListViewModel = viewModel()
 ) {
     val profiles by viewModel.profiles.collectAsState()
-    val defaultId by viewModel.defaultProfileId.collectAsState()
+    val activeId by viewModel.activeProfileId.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
         // Title
         Text(
             text = "Profiles",
@@ -94,8 +101,8 @@ fun ProfileListScreen(
                             supportingContent = { Text(profile.type) },
                             leadingContent = {
                                 RadioButton(
-                                    selected = profile.id == defaultId,
-                                    onClick = { viewModel.setDefaultProfile(profile.id) }
+                                    selected = profile.id == activeId,
+                                    onClick = { viewModel.setActiveProfile(profile.id) }
                                 )
                             },
                             modifier = Modifier
