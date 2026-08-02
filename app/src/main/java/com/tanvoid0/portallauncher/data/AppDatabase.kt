@@ -19,9 +19,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProfileEntity::class,
         AutomationConfigEntity::class,
         AiCategoryEntity::class,
-        HomeItemEntity::class
+        HomeItemEntity::class,
+        AppOverrideEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -31,6 +32,7 @@ abstract class AppDatabase : androidx.room.RoomDatabase() {
     abstract fun automationConfigDao(): AutomationConfigDao
     abstract fun aiCategoryDao(): AiCategoryDao
     abstract fun homeItemDao(): HomeItemDao
+    abstract fun appOverrideDao(): AppOverrideDao
 
     companion object {
         private const val DB_NAME = "portal_launcher.db"
@@ -91,5 +93,26 @@ object AppDatabaseMigrations {
         }
     }
 
-    val all: Array<Migration> get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+    /**
+     * Adds the per-app overrides: hidden apps and renames.
+     *
+     * `hidden` is stored as INTEGER because SQLite has no boolean, which is what Room
+     * generates for a Kotlin `Boolean`; `customLabel` is the one nullable column in
+     * the schema, so it is the only one without NOT NULL.
+     */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `app_override` (" +
+                    "`packageName` TEXT NOT NULL, " +
+                    "`activityName` TEXT NOT NULL, " +
+                    "`userSerial` INTEGER NOT NULL, " +
+                    "`hidden` INTEGER NOT NULL, " +
+                    "`customLabel` TEXT, " +
+                    "PRIMARY KEY(`packageName`, `activityName`, `userSerial`))"
+            )
+        }
+    }
+
+    val all: Array<Migration> get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }

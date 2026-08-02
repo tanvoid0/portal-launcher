@@ -31,6 +31,7 @@ import com.tanvoid0.portallauncher.ui.nav.Routes
 import com.tanvoid0.portallauncher.ui.onboarding.OnboardingScreen
 import com.tanvoid0.portallauncher.ui.profiles.ProfileEditScreen
 import com.tanvoid0.portallauncher.ui.profiles.ProfileListScreen
+import com.tanvoid0.portallauncher.ui.settings.HiddenAppsScreen
 import com.tanvoid0.portallauncher.ui.settings.SettingsScreen
 import com.tanvoid0.portallauncher.ui.theme.PortalLauncherTheme
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -149,7 +150,14 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
-                            composable(Routes.SETTINGS) { SettingsScreen() }
+                            composable(Routes.SETTINGS) {
+                                SettingsScreen(
+                                    onOpenHiddenApps = {
+                                        navController.navigate(Routes.HIDDEN_APPS)
+                                    }
+                                )
+                            }
+                            composable(Routes.HIDDEN_APPS) { HiddenAppsScreen() }
                         }
                     }
                 }

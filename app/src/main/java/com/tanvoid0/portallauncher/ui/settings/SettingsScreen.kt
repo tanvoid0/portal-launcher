@@ -1,83 +1,89 @@
 package com.tanvoid0.portallauncher.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.ai.AiStatus
+import com.tanvoid0.portallauncher.ui.kit.PortalGroup
+import com.tanvoid0.portallauncher.ui.kit.PortalRow
+import com.tanvoid0.portallauncher.ui.kit.PortalScreen
+import com.tanvoid0.portallauncher.ui.kit.Spacing
 
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    onOpenHiddenApps: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel()
 ) {
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
     val aiEnabled by viewModel.aiEnabled.collectAsStateWithLifecycle()
     val working by viewModel.working.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
-        )
-
-        ListItem(
-            headlineContent = { Text("App categories") },
-            supportingContent = { Text("Customize how apps are grouped", style = MaterialTheme.typography.bodySmall) },
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-        HorizontalDivider()
-        ListItem(
-            headlineContent = { Text("Sort unknown apps with on-device AI") },
-            supportingContent = {
-                Text(
-                    text = aiSummary(aiStatus, aiEnabled, working),
-                    style = MaterialTheme.typography.bodySmall
+    PortalScreen(title = "Settings", modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = Spacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            PortalGroup(title = "Apps") {
+                PortalRow(
+                    title = "App categories",
+                    subtitle = "Customize how apps are grouped",
+                    icon = Icons.Default.Category
                 )
-            },
-            trailingContent = {
-                Switch(
-                    checked = aiEnabled,
-                    onCheckedChange = viewModel::setAiEnabled,
-                    // Nothing to switch on where the model cannot run. The row stays
-                    // visible and says why, rather than vanishing and leaving the
-                    // user wondering whether the app is missing a feature.
-                    enabled = aiStatus != AiStatus.Unavailable && !working
+                PortalRow(
+                    title = "Hidden apps",
+                    subtitle = "Bring back apps you hid from the home screen and drawer",
+                    icon = Icons.Default.VisibilityOff,
+                    onClick = onOpenHiddenApps
                 )
-            },
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-        HorizontalDivider()
-        ListItem(
-            headlineContent = { Text("Backup & restore") },
-            supportingContent = { Text("Export or restore profiles and preferences", style = MaterialTheme.typography.bodySmall) },
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-        HorizontalDivider()
-        ListItem(
-            headlineContent = { Text("Scheduler") },
-            supportingContent = { Text("Switch profiles by time or automation", style = MaterialTheme.typography.bodySmall) },
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
+                PortalRow(
+                    title = "Sort unknown apps with on-device AI",
+                    subtitle = aiSummary(aiStatus, aiEnabled, working),
+                    icon = Icons.Default.AutoAwesome,
+                    trailing = {
+                        Switch(
+                            checked = aiEnabled,
+                            onCheckedChange = viewModel::setAiEnabled,
+                            // Nothing to switch on where the model cannot run. The row
+                            // stays visible and says why, rather than vanishing and
+                            // leaving the user wondering whether the app is missing a
+                            // feature.
+                            enabled = aiStatus != AiStatus.Unavailable && !working
+                        )
+                    }
+                )
+            }
+            PortalGroup(title = "Portal") {
+                PortalRow(
+                    title = "Backup & restore",
+                    subtitle = "Export or restore profiles and preferences",
+                    icon = Icons.Default.Backup
+                )
+                PortalRow(
+                    title = "Scheduler",
+                    subtitle = "Switch profiles by time or automation",
+                    icon = Icons.Default.Schedule
+                )
+            }
+        }
     }
 }
 

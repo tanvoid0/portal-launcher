@@ -576,3 +576,69 @@ pinned apps are still the first 8 alphabetically.
   contrast bug the app labels had — unselected `FilterChip`s default to a
   transparent container, putting their text straight onto the wallpaper — so the
   chips now carry the frosted backing the search pill already used.
+
+---
+
+## 10. What phase 3 actually did
+
+Done 2026-08-02. Verified by a green `assembleDebug + assembleRelease +
+lintDebug + testDebugUnitTest` plus 11 instrumented tests, and by driving the
+running launcher on a Pixel 9a emulator holding the HOME role.
+
+Release size after R8 is now **2.80 MB** (was 2.32 MB at phase 1).
+
+### Shipped
+
+1. **Icon cache** (`IconCache`) — an `LruCache` sized against
+   `ActivityManager.memoryClass / 8`, keyed by app identity *and* pixel size,
+   application-scoped so it survives navigation. It clears wholesale whenever the
+   app list re-emits, which is exactly when an icon can have changed; crude beats
+   tracking which packages a change touched, and it refills from visible cells.
+   D4 is now fully closed.
+2. **Real pinned apps** on the `home_item` table. Verified on device: pinning
+   Calendar seeded the other seven as explicit pins and appended Calendar, so
+   nothing vanished.
+3. **Long-press context menu** — pin/unpin, rename, hide, app info, uninstall.
+   Verified that **Uninstall does not appear for Calendar**, because
+   `canUninstall` excludes system and work-profile apps. App info goes through
+   `LauncherApps.startAppDetailsActivity`, not the settings intent, because that
+   intent cannot target another user and would silently do nothing for a
+   work-profile app.
+4. **Hidden and renamed apps** — a new `app_override` table (schema **v4**),
+   global rather than per-profile: categories already do per-profile visibility,
+   and "call this something else" is a statement about the app.
+5. **Swipe up to open the drawer.**
+
+### Deferred, with the reason
+
+Drag-to-reorder, `LauncherApps.getShortcuts()`, double-tap to lock and swipe-down
+for the notification shade. The last two both need the `AccessibilityService` that
+§1.2 says to defer until the blocker needs it, so they belong with phase 6 rather
+than being half-built here.
+
+### Three holes found by reviewing and running my own work
+
+- **Swipe-up did nothing.** The gesture was on the outer `Box`, but the home grid
+  had `weight(1f)` and so covered the "empty" area; its scroll modifier swallowed
+  the drag even with nothing to scroll. The code comment had *rationalised* this
+  risk instead of testing it. Fixed by sizing the grid to its content with a
+  weighted `Spacer` beneath it, which is also the more honest layout. Caps the
+  home screen at one screenful — fine, multi-page home is out of v1.0 (§5).
+- **Unpinning everything resurrected everything.** Inferring the fallback from
+  `pinned.isEmpty()` conflates "never customised" with "customised, then
+  emptied" — and an empty home screen is exactly what a minimal-launcher user is
+  after. `resolveHomeApps` now takes an explicit `isCustomised`, backed by a
+  DataStore set of profile ids (a preference, not a column, so no migration).
+  There is a test named after the bug.
+- **Hide was a one-way door.** A hidden app is filtered out of the home screen,
+  the drawer and search, so no surface was left that could offer to unhide it —
+  while the menu told the user to go to Settings. Added `HiddenAppsScreen`, which
+  deliberately reads the *unfiltered* app list. The same reasoning added a
+  "Restore defaults" action to the emptied-home state.
+
+### Testing note worth keeping
+
+`HomeResolverTest` is an **instrumented** test despite being pure logic:
+`LaunchableApp` holds a real `UserHandle`, which has no constructor available off
+device. That is a better trade than making the field nullable or adding
+Robolectric for one type.

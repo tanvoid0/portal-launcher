@@ -6,6 +6,7 @@ object Routes {
     const val PROFILE_EDIT = "profile_edit"
     const val ONBOARDING = "onboarding"
     const val SETTINGS = "settings"
+    const val HIDDEN_APPS = "hidden_apps"
 
     fun profileEdit(id: String?) = "profile_edit/${id ?: "new"}"
 }

@@ -1,31 +1,36 @@
 package com.tanvoid0.portallauncher.ui.launcher
 
 import android.app.Application
-import android.graphics.Canvas
-import android.graphics.drawable.Drawable
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.createBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.AppCategorizer
+import com.tanvoid0.portallauncher.data.AppOverrideEntity
 import com.tanvoid0.portallauncher.data.AppVisibilityConfig
+import com.tanvoid0.portallauncher.data.HomeItemEntity
 import com.tanvoid0.portallauncher.data.LaunchableApp
 import com.tanvoid0.portallauncher.data.ProfileEntity
+import com.tanvoid0.portallauncher.data.applyOverrides
+import com.tanvoid0.portallauncher.data.homeItemFor
+import com.tanvoid0.portallauncher.data.isPinned
 import com.tanvoid0.portallauncher.data.resolveActiveProfile
-import kotlinx.coroutines.Dispatchers
+import com.tanvoid0.portallauncher.data.resolveHomeApps
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+/** How many category-matched apps fill the home screen before the user pins anything. */
+const val HOME_FALLBACK_COUNT = 8
 
 data class LauncherUiState(
     val activeProfile: ProfileEntity? = null,
@@ -38,8 +43,12 @@ data class LauncherUiState(
      * still accessible.
      */
     val allApps: List<LaunchableApp> = emptyList(),
-    /** [allApps] narrowed to the active profile's primary categories. */
-    val homeApps: List<LaunchableApp> = emptyList()
+    /** What the home grid shows: the user's pinned apps, or the category default. */
+    val homeApps: List<LaunchableApp> = emptyList(),
+    /** Pinned rows for the active profile, so the menu knows whether to say Pin or Unpin. */
+    val pinned: List<HomeItemEntity> = emptyList(),
+    /** True once the user has pinned anything, i.e. the grid is theirs and not a default. */
+    val hasCustomLayout: Boolean = false
 )
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -48,6 +57,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val profileRepository = app.profileRepository
     private val preferencesRepository = app.preferencesRepository
     private val appRepository = app.appRepository
+    private val iconCache = app.iconCache
+    private val homeItemDao = app.database.homeItemDao()
+    private val appOverrideDao = app.database.appOverrideDao()
 
     /**
      * Whatever the on-device model has classified so far. Empty on every device
@@ -76,18 +88,56 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             else flowOf(null)
         }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val pinnedFlow: Flow<List<HomeItemEntity>> =
+        activeProfileFlow.flatMapLatest { profile ->
+            if (profile != null) homeItemDao.observeForProfile(profile.id) else flowOf(emptyList())
+        }
+
+    private val overridesFlow: Flow<Map<String, AppOverrideEntity>> =
+        appOverrideDao.observeAll().map { rows ->
+            rows.associateBy { "${it.packageName}/${it.activityName}/${it.userSerial}" }
+        }
+
+    /**
+     * Combined in two stages because [combine] takes at most five flows. The first
+     * stage is everything about the apps themselves, the second everything about the
+     * profile — splitting it this way keeps each stage's inputs related.
+     */
+    private val appsFlow = combine(
+        appRepository.apps,
+        overridesFlow,
+        aiCategories
+    ) { apps, overrides, ai -> applyOverrides(apps, overrides) to ai }
+
+    /** Pinned rows plus whether this profile's layout is the user's, empty or not. */
+    private val layoutFlow = combine(
+        pinnedFlow,
+        activeProfileFlow,
+        preferencesRepository.customLayoutProfileIds
+    ) { pinned, profile, customised -> pinned to (profile != null && profile.id in customised) }
+
     val uiState: StateFlow<LauncherUiState> = combine(
         activeProfileFlow,
         profileRepository.getAllProfiles(),
         visibilityConfigFlow,
-        appRepository.apps,
-        aiCategories
-    ) { active, profiles, visibilityConfig, apps, aiCategories ->
+        appsFlow,
+        layoutFlow
+    ) { active, profiles, visibilityConfig, (apps, ai), (pinned, isCustomised) ->
+        val categoryFiltered = filterAppsByProfile(apps, active, visibilityConfig, ai)
         LauncherUiState(
             activeProfile = active,
             profiles = profiles,
             allApps = apps,
-            homeApps = filterAppsByProfile(apps, active, visibilityConfig, aiCategories)
+            homeApps = resolveHomeApps(
+                pinned = pinned,
+                installed = apps,
+                categoryFiltered = categoryFiltered,
+                fallbackLimit = HOME_FALLBACK_COUNT,
+                isCustomised = isCustomised
+            ),
+            pinned = pinned,
+            hasCustomLayout = isCustomised
         )
     }.stateIn(
         scope = viewModelScope,
@@ -99,24 +149,92 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun launch(app: LaunchableApp) = appRepository.launch(app)
 
+    fun openAppInfo(app: LaunchableApp) = appRepository.openAppInfo(app)
+
+    fun canUninstall(app: LaunchableApp) = appRepository.canUninstall(app)
+
     fun setActiveProfile(profileId: String) {
         viewModelScope.launch {
             preferencesRepository.setActiveProfileId(profileId)
         }
     }
 
-    /**
-     * Rasterises one app icon at the caller's pixel size. Called per *visible*
-     * grid cell, so only what is on screen is ever rendered — the previous code
-     * rasterised every installed app up front and held the bitmaps in state.
-     *
-     * ponytail: no cache, so scrolling back re-renders the drawable. Phase 3 puts
-     * an LruCache inside AppRepository.loadIcon — the only place that changes.
-     */
+    /** Icon for a visible cell, cached across screens. See [com.tanvoid0.portallauncher.data.IconCache]. */
     suspend fun loadIcon(app: LaunchableApp, sizePx: Int): ImageBitmap? =
-        withContext(Dispatchers.Default) {
-            appRepository.loadIcon(app)?.toImageBitmap(sizePx)
+        iconCache.icon(app, sizePx)
+
+    fun isPinnedToHome(app: LaunchableApp): Boolean = isPinned(uiState.value.pinned, app)
+
+    /**
+     * Pinning the first app converts the grid from "the category default" into the
+     * user's own layout. That means seeding the current default first, or the act of
+     * pinning one app would appear to delete the other seven.
+     */
+    fun togglePin(app: LaunchableApp) {
+        val state = uiState.value
+        val profileId = state.activeProfile?.id ?: return
+        viewModelScope.launch {
+            if (isPinned(state.pinned, app)) {
+                homeItemDao.remove(profileId, app.packageName, app.activityName, app.userSerial)
+                return@launch
+            }
+            // First pin converts the grid from "the category default" into the user's
+            // own list. Seed the default first, or pinning one app would look like it
+            // deleted the other seven.
+            if (!state.hasCustomLayout) {
+                val seed = state.homeApps.filter { it.key != app.key }
+                homeItemDao.replaceForProfile(
+                    profileId,
+                    seed.mapIndexed { index, seeded -> homeItemFor(seeded, profileId, index) }
+                )
+                preferencesRepository.setLayoutCustomised(profileId, true)
+            }
+            homeItemDao.upsert(homeItemFor(app, profileId, homeItemDao.nextPosition(profileId)))
         }
+    }
+
+    /** Gives the profile its category default back, discarding the user's own layout. */
+    fun resetLayout() {
+        val profileId = uiState.value.activeProfile?.id ?: return
+        viewModelScope.launch {
+            homeItemDao.deleteForProfile(profileId)
+            preferencesRepository.setLayoutCustomised(profileId, false)
+        }
+    }
+
+    /**
+     * Hides an app everywhere, and unpins it. Without the unpin, storage would hold a
+     * pin for something the user asked never to see; the resolver filters hidden apps
+     * anyway, but two rows disagreeing is how stale state gets shipped.
+     */
+    fun setHidden(app: LaunchableApp, hidden: Boolean) {
+        viewModelScope.launch {
+            appOverrideDao.upsert(
+                overrideFor(app).copy(hidden = hidden, customLabel = app.customLabel)
+            )
+            if (hidden) {
+                uiState.value.profiles.forEach { profile ->
+                    homeItemDao.remove(profile.id, app.packageName, app.activityName, app.userSerial)
+                }
+            }
+            appOverrideDao.pruneEmpty()
+        }
+    }
+
+    /** Renames an app, or clears the rename when [label] is blank. */
+    fun rename(app: LaunchableApp, label: String) {
+        viewModelScope.launch {
+            val trimmed = label.trim().takeIf { it.isNotEmpty() && it != app.label }
+            appOverrideDao.upsert(overrideFor(app).copy(customLabel = trimmed))
+            appOverrideDao.pruneEmpty()
+        }
+    }
+
+    private fun overrideFor(app: LaunchableApp) = AppOverrideEntity(
+        packageName = app.packageName,
+        activityName = app.activityName,
+        userSerial = app.userSerial
+    )
 
     private fun filterAppsByProfile(
         apps: List<LaunchableApp>,
@@ -129,11 +247,4 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (primary.isEmpty()) return apps
         return apps.filter { AppCategorizer.categoryFor(it, aiCategories).id in primary }
     }
-}
-
-private fun Drawable.toImageBitmap(size: Int): ImageBitmap {
-    val bitmap = createBitmap(size, size)
-    setBounds(0, 0, size, size)
-    draw(Canvas(bitmap))
-    return bitmap.asImageBitmap()
 }

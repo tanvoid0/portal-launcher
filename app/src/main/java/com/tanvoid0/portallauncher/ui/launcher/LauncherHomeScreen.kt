@@ -1,8 +1,10 @@
 package com.tanvoid0.portallauncher.ui.launcher
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,22 +28,20 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -56,27 +56,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.data.LaunchableApp
+import com.tanvoid0.portallauncher.ui.kit.EmptyState
+import com.tanvoid0.portallauncher.ui.kit.GlassSurface
+import com.tanvoid0.portallauncher.ui.kit.OnWallpaperTextStyle
+import com.tanvoid0.portallauncher.ui.kit.Spacing
+import com.tanvoid0.portallauncher.ui.kit.glassColor
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val PINNED_APP_COUNT = 8
 private const val HOME_GRID_COLUMNS = 4
 private val ICON_SIZE = 48.dp
 private val CELL_SIZE = 56.dp
+
+/**
+ * How far up you have to drag before the drawer opens. Well above the touch slop, so
+ * a slightly imprecise tap on an icon does not open the drawer instead of the app.
+ */
+private val SWIPE_UP_THRESHOLD = 72.dp
 
 // Preferred dock apps in order: Phone, Messages, Camera, Play Store (app drawer is added separately)
 private val DOCK_PACKAGES = listOf(
@@ -96,18 +104,34 @@ fun LauncherHomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var appDrawerOpen by remember { mutableStateOf(false) }
+    var menuApp by remember { mutableStateOf<LaunchableApp?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // ponytail: "pinned" is still the first N alphabetically. Phase 3 backs this
-    // with the home_item table so the user actually chooses and reorders them.
-    val pinnedApps = uiState.homeApps.take(PINNED_APP_COUNT)
+    // Either the user's pinned layout or the profile's category default — the
+    // resolver decides, and already applies the count limit. See resolveHomeApps.
+    val homeApps = uiState.homeApps
     // Dock and drawer deliberately ignore the profile filter — see LauncherUiState.
     val dockApps = remember(uiState.allApps) { resolveDockApps(uiState.allApps) }
+    val swipeThresholdPx = with(LocalDensity.current) { SWIPE_UP_THRESHOLD.toPx() }
 
     // The system wallpaper shows through the window itself (windowShowWallpaper in
     // Theme.PortalLauncher), so live wallpapers and parallax work and we hold no
     // bitmap of our own.
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            // Swipe up anywhere on the background opens the drawer. Attached to the
+            // outer Box rather than the grid: a scrollable grid consumes vertical
+            // drags itself, and the empty part of the home screen is where the gesture
+            // is made anyway.
+            .pointerInput(Unit) {
+                var travelled = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { travelled = 0f },
+                    onDragEnd = { if (travelled < -swipeThresholdPx) appDrawerOpen = true }
+                ) { _, delta -> travelled += delta }
+            }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -116,7 +140,7 @@ fun LauncherHomeScreen(
             SearchPill(
                 // Phase 4 replaces this with a real query field.
                 onClick = { appDrawerOpen = true },
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.md)
             )
 
             // Profile chips only when there is something to switch between.
@@ -125,8 +149,8 @@ fun LauncherHomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = Spacing.gutter, vertical = Spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     uiState.profiles.forEach { profile ->
                         FilterChip(
@@ -136,58 +160,100 @@ fun LauncherHomeScreen(
                             // An unselected chip defaults to a transparent container,
                             // which puts its label straight onto the wallpaper and
                             // makes it unreadable over anything dark. Give it the same
-                            // frosted backing the search pill and date card use.
+                            // frosted backing the search pill and glance card use.
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = MaterialTheme.colorScheme
-                                    .surfaceContainerHighest.copy(alpha = 0.6f),
+                                containerColor = glassColor(),
                                 labelColor = MaterialTheme.colorScheme.onSurface
-                            )
+                            ),
+                            border = null
                         )
                     }
                 }
             }
 
-            AtAGlanceCard(modifier = Modifier.padding(horizontal = 24.dp))
+            AtAGlanceCard(modifier = Modifier.padding(horizontal = Spacing.gutter))
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(Spacing.xl))
 
-            if (pinnedApps.isEmpty() && uiState.allApps.isNotEmpty()) {
-                // A profile whose categories match nothing installed. Rendering an
-                // empty grid here is indistinguishable from the launcher being broken,
-                // and the way out — the drawer, or another profile — is not obvious
-                // from a blank screen.
-                EmptyProfileNotice(
-                    profileName = uiState.activeProfile?.name,
-                    onOpenDrawer = { appDrawerOpen = true },
+            if (homeApps.isEmpty() && uiState.allApps.isNotEmpty()) {
+                // Two different empty states, and saying the wrong one is worse than
+                // saying nothing: "nothing matches this profile" is a lie to someone
+                // who just unpinned everything on purpose. Both still offer a way out —
+                // an empty grid with no explanation reads as a broken launcher.
+                val emptiedByUser = uiState.hasCustomLayout
+                EmptyState(
+                    title = if (emptiedByUser) {
+                        "Home screen is empty"
+                    } else {
+                        uiState.activeProfile?.name?.let { "No apps in $it" } ?: "No apps to show"
+                    },
+                    body = if (emptiedByUser) {
+                        "You removed every app from this profile's home screen. " +
+                            "They are all still in the drawer."
+                    } else {
+                        "Nothing installed matches this profile's categories. " +
+                            "Every app is still in the drawer."
+                    },
+                    icon = Icons.Default.SearchOff,
+                    onWallpaper = true,
+                    action = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            Button(onClick = { appDrawerOpen = true }) { Text("Open app drawer") }
+                            if (emptiedByUser) {
+                                // The way back from emptying the grid. Without it,
+                                // unpinning everything is a one-way door.
+                                OutlinedButton(onClick = viewModel::resetLayout) {
+                                    Text("Restore defaults")
+                                }
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                 )
             } else {
+                // Sized to its content, not weight(1f). A weighted grid stretches over
+                // the empty half of the screen, and its scroll modifier then swallows
+                // the swipe-up that should open the drawer even with nothing to scroll —
+                // which is exactly how the gesture silently did nothing.
+                //
+                // ponytail: caps the home screen at one screenful. Pin more than fits
+                // and the grid runs under the dock rather than scrolling. Multi-page
+                // home is explicitly out of v1.0 (see PRODUCTION_PLAN.md §5); if that
+                // changes, this needs a scrollable region plus nested-scroll handling to
+                // keep the gesture alive.
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(HOME_GRID_COLUMNS),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                    contentPadding = PaddingValues(
+                        horizontal = Spacing.lg,
+                        vertical = Spacing.sm
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+                    userScrollEnabled = false,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(pinnedApps, key = { it.key }) { app ->
+                    items(homeApps, key = { it.key }) { app ->
                         AppIconCell(
                             app = app,
                             viewModel = viewModel,
                             onClick = { viewModel.launch(app) },
+                            onLongClick = { menuApp = app },
                             onWallpaper = true
                         )
                     }
                 }
+                // The gesture surface. Everything above is laid out; this is the part of
+                // the home screen you can actually swipe up from.
+                Spacer(modifier = Modifier.weight(1f))
             }
 
             Dock(
                 apps = dockApps,
                 viewModel = viewModel,
-                onOpenDrawer = { appDrawerOpen = true }
+                onOpenDrawer = { appDrawerOpen = true },
+                onLongPress = { menuApp = it }
             )
         }
 
@@ -205,10 +271,15 @@ fun LauncherHomeScreen(
                         appDrawerOpen = false
                         viewModel.launch(app)
                     },
+                    onLongPress = { menuApp = it },
                     onOpenProfiles = { appDrawerOpen = false; onOpenProfiles() },
                     onOpenSettings = { appDrawerOpen = false; onOpenSettings() }
                 )
             }
+        }
+
+        menuApp?.let { app ->
+            AppContextMenu(app = app, viewModel = viewModel, onDismiss = { menuApp = null })
         }
     }
 }
@@ -225,9 +296,12 @@ fun LauncherHomeScreen(
  * there whether merging is on or not. Confirming what TalkBack actually announces
  * needs the Compose UI tests in phase 8 (merged tree, `assertHasClickAction`).
  */
-private fun Modifier.clickableCell(onClick: () -> Unit): Modifier =
-    clickable(role = Role.Button, onClick = onClick)
-        .semantics(mergeDescendants = true) {}
+@OptIn(ExperimentalFoundationApi::class)
+internal fun Modifier.clickableCell(
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
+): Modifier = combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick)
+    .semantics(mergeDescendants = true) {}
 
 /**
  * Looks like a search field but is a button, and is announced as one. The old
@@ -236,18 +310,15 @@ private fun Modifier.clickableCell(onClick: () -> Unit): Modifier =
  */
 @Composable
 private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
+    GlassSurface(
         onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) {},
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+        modifier = modifier.fillMaxWidth(),
+        shape = CircleShape
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Icon(
                 Icons.Default.Search,
@@ -263,39 +334,6 @@ private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Shown when the active profile's categories match nothing installed — which is the
- * normal state of the Study profile on a device with no study apps on it. Says which
- * profile is responsible and leaves a way out, rather than looking like a launcher
- * that failed to load.
- */
-@Composable
-private fun EmptyProfileNotice(
-    profileName: String?,
-    onOpenDrawer: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.padding(horizontal = 32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = if (profileName != null) "No apps in $profileName" else "No apps to show",
-            style = MaterialTheme.typography.titleMedium.merge(OnWallpaperTextStyle)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Nothing installed matches this profile's categories. " +
-                "Every app is still in the drawer.",
-            style = MaterialTheme.typography.bodyMedium.merge(OnWallpaperTextStyle),
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onOpenDrawer) { Text("Open app drawer") }
-    }
-}
-
 @Composable
 private fun AtAGlanceCard(modifier: Modifier = Modifier) {
     // Re-formats every minute; the previous version formatted once and then showed
@@ -306,26 +344,15 @@ private fun AtAGlanceCard(modifier: Modifier = Modifier) {
             value = formatToday()
         }
     }
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(72.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
+    GlassSurface(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
+            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = today,
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -339,20 +366,25 @@ private fun Dock(
     apps: List<LaunchableApp>,
     viewModel: LauncherViewModel,
     onOpenDrawer: () -> Unit,
+    onLongPress: (LaunchableApp) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-        shadowElevation = 6.dp
+    // A floating frosted bar rather than the full-width opaque strip it used to be —
+    // an edge-to-edge slab of `surface` covers the bottom of the wallpaper and is the
+    // most dated thing on the screen.
+    GlassSurface(
+        modifier = modifier
+            .fillMaxWidth()
+            // Without this the dock sits under the navigation bar: edge-to-edge
+            // is mandatory from targetSdk 35 and cannot be opted out of.
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = Spacing.md, vertical = Spacing.md),
+        shape = CircleShape
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // Without this the dock sits under the navigation bar: edge-to-edge
-                // is mandatory from targetSdk 35 and cannot be opted out of.
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -360,14 +392,15 @@ private fun Dock(
                 AppIcon(
                     app = app,
                     viewModel = viewModel,
-                    onClick = { viewModel.launch(app) }
+                    onClick = { viewModel.launch(app) },
+                    onLongClick = { onLongPress(app) }
                 )
             }
             Box(
                 modifier = Modifier
                     .size(CELL_SIZE)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                     .clickableCell(onOpenDrawer),
                 contentAlignment = Alignment.Center
             ) {
@@ -386,34 +419,35 @@ private fun AppDrawerContent(
     apps: List<LaunchableApp>,
     viewModel: LauncherViewModel,
     onLaunch: (LaunchableApp) -> Unit,
+    onLongPress: (LaunchableApp) -> Unit,
     onOpenProfiles: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 32.dp)
+            .padding(bottom = Spacing.xxl)
     ) {
         Text(
             "Apps",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.md)
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             DrawerShortcut(Icons.Default.Person, "Profiles", onOpenProfiles)
             DrawerShortcut(Icons.Default.Settings, "Settings", onOpenSettings)
         }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 80.dp),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(Spacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
             modifier = Modifier.heightIn(max = 420.dp)
         ) {
             items(apps, key = { it.key }) { app ->
@@ -421,6 +455,7 @@ private fun AppDrawerContent(
                     app = app,
                     viewModel = viewModel,
                     onClick = { onLaunch(app) },
+                    onLongClick = { onLongPress(app) },
                     onWallpaper = false
                 )
             }
@@ -440,19 +475,22 @@ private fun AppIconCell(
     app: LaunchableApp,
     viewModel: LauncherViewModel,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onWallpaper: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .clickableCell(onClick)
+            .clickableCell(onClick, onLongClick)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AppIcon(app = app, viewModel = viewModel, onClick = null)
+        // Null handlers: the enclosing cell already owns both gestures, so the icon
+        // must not add a second target for the same app.
+        AppIcon(app = app, viewModel = viewModel, onClick = null, onLongClick = null)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = app.label,
+            text = app.displayLabel,
             style = if (onWallpaper) {
                 MaterialTheme.typography.labelSmall.merge(OnWallpaperTextStyle)
             } else {
@@ -466,17 +504,6 @@ private fun AppIconCell(
 }
 
 /**
- * Home-screen labels sit directly on the user's wallpaper, which can be any colour
- * at all, so no theme colour is legible against it — `onSurface` is near-black in a
- * light scheme and vanishes on a dark photo. White plus a soft shadow is what every
- * launcher does, and it survives both extremes.
- */
-private val OnWallpaperTextStyle = TextStyle(
-    color = Color.White,
-    shadow = Shadow(color = Color.Black.copy(alpha = 0.75f), blurRadius = 6f)
-)
-
-/**
  * Bare icon. Pass a null [onClick] when an ancestor is already clickable, so the
  * cell exposes one accessibility target instead of two.
  */
@@ -485,25 +512,28 @@ private fun AppIcon(
     app: LaunchableApp,
     viewModel: LauncherViewModel,
     onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val icon = rememberAppIcon(app, viewModel)
     Box(
         modifier = modifier
             .size(CELL_SIZE)
-            .then(if (onClick != null) Modifier.clickableCell(onClick) else Modifier),
+            .then(
+                if (onClick != null) Modifier.clickableCell(onClick, onLongClick) else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
             Image(
                 bitmap = icon,
-                contentDescription = if (onClick != null) app.label else null,
+                contentDescription = if (onClick != null) app.displayLabel else null,
                 modifier = Modifier.size(ICON_SIZE)
             )
         } else {
             // Placeholder while the drawable rasterises, and fallback if it fails.
             Text(
-                text = app.label.take(1).uppercase(),
+                text = app.displayLabel.take(1).uppercase(),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -535,19 +565,23 @@ private fun DrawerShortcut(
         modifier = modifier
             .width(72.dp)
             .clickableCell(onClick)
-            .padding(8.dp),
+            .padding(Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
                 .size(ICON_SIZE)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                .clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            )
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,

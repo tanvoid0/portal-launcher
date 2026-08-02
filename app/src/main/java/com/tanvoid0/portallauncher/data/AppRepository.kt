@@ -2,6 +2,7 @@ package com.tanvoid0.portallauncher.data
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.graphics.drawable.Drawable
 import android.os.Handler
@@ -23,6 +24,13 @@ data class LaunchableApp(
     val packageName: String,
     val activityName: String,
     val user: UserHandle,
+    /**
+     * Stable id for [user], from [UserManager.getSerialNumberForUser]. Carried here so
+     * anything that persists a reference to this app — the home layout, the per-app
+     * overrides — can do it without a UserManager of its own, and so that reference
+     * still resolves after a reboot, which a [UserHandle] would not.
+     */
+    val userSerial: Long,
     val label: String,
     val isWorkProfile: Boolean,
     /**
@@ -30,10 +38,17 @@ data class LaunchableApp(
      * developer declared. Free, exact when present, and [ApplicationInfo.CATEGORY_UNDEFINED]
      * for a large minority of apps. [AppCategorizer] decides what to do with it.
      */
-    val systemCategory: Int
+    val systemCategory: Int,
+    /** True for apps shipped with the system image; those cannot be uninstalled. */
+    val isSystemApp: Boolean = false,
+    /** User-chosen name, when they renamed it. [displayLabel] is what UI should show. */
+    val customLabel: String? = null
 ) {
-    /** Stable within a boot — [UserHandle.hashCode] is the user id. Use for list keys. */
-    val key: String get() = "$packageName/$activityName/${user.hashCode()}"
+    /** Identity across processes and reboots. Used for list keys and for storage. */
+    val key: String get() = "$packageName/$activityName/$userSerial"
+
+    /** The name to show: the user's rename if there is one, otherwise the app's own. */
+    val displayLabel: String get() = customLabel?.takeIf { it.isNotBlank() } ?: label
 }
 
 /**
@@ -90,9 +105,12 @@ class AppRepository(private val context: Context) {
                             packageName = info.componentName.packageName,
                             activityName = info.componentName.className,
                             user = user,
+                            userSerial = userManager.getSerialNumberForUser(user),
                             label = info.label?.toString() ?: info.componentName.packageName,
                             isWorkProfile = user != me,
-                            systemCategory = info.applicationInfo.category
+                            systemCategory = info.applicationInfo.category,
+                            isSystemApp = info.applicationInfo.flags and
+                                ApplicationInfo.FLAG_SYSTEM != 0
                         )
                     }
             }
@@ -100,12 +118,35 @@ class AppRepository(private val context: Context) {
     }
 
     /**
+     * Opens the system's app-info screen. Goes through [LauncherApps] rather than an
+     * ACTION_APPLICATION_DETAILS_SETTINGS intent because that intent cannot target
+     * another user, so it would silently do nothing for a work-profile app.
+     */
+    fun openAppInfo(app: LaunchableApp) {
+        runCatching {
+            launcherApps.startAppDetailsActivity(
+                ComponentName(app.packageName, app.activityName),
+                app.user,
+                null,
+                null
+            )
+        }
+    }
+
+    /**
+     * True when we can offer to uninstall. System apps cannot be removed, and
+     * ACTION_DELETE has no way to name a different user, so offering it for a
+     * work-profile app would be a button that does nothing.
+     */
+    fun canUninstall(app: LaunchableApp): Boolean = !app.isSystemApp && !app.isWorkProfile
+
+    /**
      * Resolves the icon drawable, badged if the app belongs to a work profile.
      * Call off the main thread — rendering an adaptive icon is not free.
      *
-     * ponytail: re-looks-up the activity each call rather than caching the
-     * LauncherActivityInfo. Cost is one short list scan per visible icon.
-     * Phase 3 adds an LruCache in front of this; that is where to put memoisation.
+     * Not memoised here: [IconCache] sits in front of this and caches the rasterised
+     * result, which is the expensive part. Drawables are mutable and stateful, so
+     * caching them rather than bitmaps would be sharing mutable state between cells.
      */
     fun loadIcon(app: LaunchableApp): Drawable? {
         val info = runCatching { launcherApps.getActivityList(app.packageName, app.user) }

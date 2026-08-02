@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -29,7 +30,33 @@ private val KEY_BUILT_IN_PROFILES_SEEDED = booleanPreferencesKey("built_in_profi
 // means every time the system reclaims us.
 private val KEY_SETUP_COMPLETE = booleanPreferencesKey("setup_complete")
 
+/**
+ * Profiles whose home layout the user has taken over.
+ *
+ * Needed to tell "never customised" from "customised, then emptied". Without it,
+ * unpinning the last app makes the layout indistinguishable from a fresh profile, so
+ * the category default comes back and every app the user just removed reappears — and
+ * an empty home screen is exactly what a minimal-launcher user is after.
+ *
+ * A preference rather than a column so it needs no migration; it is one flag per
+ * profile, not a relation.
+ */
+private val KEY_CUSTOM_LAYOUT_PROFILE_IDS = stringSetPreferencesKey("custom_layout_profile_ids")
+
 class PreferencesRepository(private val context: Context) {
+
+    /** Profiles where the home grid is the user's own list, empty or not. */
+    val customLayoutProfileIds: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CUSTOM_LAYOUT_PROFILE_IDS] ?: emptySet()
+    }
+
+    suspend fun setLayoutCustomised(profileId: String, customised: Boolean) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_CUSTOM_LAYOUT_PROFILE_IDS] ?: emptySet()
+            prefs[KEY_CUSTOM_LAYOUT_PROFILE_IDS] =
+                if (customised) current + profileId else current - profileId
+        }
+    }
 
     /** The profile currently in effect. Changes when the user switches, or on a schedule. */
     val activeProfileId: Flow<String?> = context.dataStore.data.map { prefs ->

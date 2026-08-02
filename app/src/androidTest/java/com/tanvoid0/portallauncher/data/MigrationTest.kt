@@ -68,6 +68,46 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate3To4_addsOverridesAndKeepsHomeLayout() {
+        helper.createDatabase(TEST_DB, 3).use { db ->
+            db.execSQL(
+                "INSERT INTO profiles (id, name, iconResName, type, enabledAutomationIds, sortOrder) " +
+                    "VALUES ('study', 'Study', 'study', 'Study', '', 0)"
+            )
+            db.execSQL(
+                "INSERT INTO home_item (profileId, packageName, activityName, userSerial, position) " +
+                    "VALUES ('study', 'com.example.notes', 'com.example.notes.Main', 0, 3)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            4,
+            true,
+            AppDatabaseMigrations.MIGRATION_3_4
+        )
+
+        // A pinned app at a non-default position is what proves the layout survived
+        // rather than being recreated empty.
+        db.query("SELECT packageName, position FROM home_item WHERE profileId = 'study'").use { c ->
+            assertTrue("home layout was lost by the migration", c.moveToFirst())
+            assertEquals("com.example.notes", c.getString(0))
+            assertEquals(3, c.getInt(1))
+        }
+        // The new table takes a null customLabel, which is the only nullable column
+        // in the schema and therefore the one a hand-written migration gets wrong.
+        db.execSQL(
+            "INSERT INTO app_override (packageName, activityName, userSerial, hidden, customLabel) " +
+                "VALUES ('com.example.spam', 'com.example.spam.Main', 0, 1, NULL)"
+        )
+        db.query("SELECT hidden, customLabel FROM app_override").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+            assertTrue("customLabel should be nullable", c.isNull(1))
+        }
+    }
+
+    @Test
     fun deletingAProfileTakesItsHomeLayoutWithIt() {
         helper.createDatabase(TEST_DB, 2).use { db ->
             db.execSQL(

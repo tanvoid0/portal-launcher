@@ -10,6 +10,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.tanvoid0.portallauncher.ui.kit.PortalShapes
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFD0BCFF),
@@ -49,5 +50,8 @@ fun PortalLauncherTheme(
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
-    MaterialTheme(colorScheme = colorScheme, content = content)
+    // Shapes are themed, not per-component: every Card, Surface, Button, chip and
+    // bottom sheet in the app reads its radius from here, so the whole surface gets
+    // the softer geometry without any of them being edited. See PortalShapes.
+    MaterialTheme(colorScheme = colorScheme, shapes = PortalShapes, content = content)
 }

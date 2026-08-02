@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -36,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,16 +50,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.data.BuiltInProfiles
 import com.tanvoid0.portallauncher.data.DefaultHomeStatus
-import com.tanvoid0.portallauncher.data.ProfileEntity
+import com.tanvoid0.portallauncher.ui.kit.PortalGroup
+import com.tanvoid0.portallauncher.ui.kit.SelectableRow
+import com.tanvoid0.portallauncher.ui.kit.Spacing
 
 /**
  * The steps, in order. The enum *is* the flow — there is no branching, so the
@@ -116,12 +113,12 @@ fun OnboardingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = Spacing.gutter)
         ) {
             StepProgress(
                 stepIndex = stepIndex,
                 stepCount = steps.size,
-                modifier = Modifier.padding(top = 24.dp)
+                modifier = Modifier.padding(top = Spacing.xl)
             )
 
             AnimatedContent(
@@ -135,7 +132,7 @@ fun OnboardingScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 32.dp)
+                        .padding(vertical = Spacing.xxl)
                 ) {
                     when (current) {
                         SetupStep.Welcome -> WelcomeStep()
@@ -174,7 +171,7 @@ private fun StepProgress(stepIndex: Int, stepCount: Int, modifier: Modifier = Mo
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Spacing.sm))
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier.fillMaxWidth()
@@ -197,8 +194,8 @@ private fun StepButtons(
             // Edge-to-edge is mandatory from targetSdk 35, so the buttons sit under
             // the navigation bar without this.
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(bottom = Spacing.xl),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // No step blocks Continue. Everything here is either optional or granted
@@ -222,13 +219,13 @@ private fun StepButtons(
 @Composable
 private fun StepHeader(title: String, body: String) {
     Text(text = title, style = MaterialTheme.typography.headlineMedium)
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(Spacing.md))
     Text(
         text = body,
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-    Spacer(Modifier.height(32.dp))
+    Spacer(Modifier.height(Spacing.xxl))
 }
 
 @Composable
@@ -243,13 +240,13 @@ private fun WelcomeStep() {
         "Your home screen",
         "Portal replaces the launcher you have now. You can switch back any time."
     )
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(Spacing.lg))
     Highlight(
         Icons.Default.Person,
         "Profiles",
         "Study, Focus, Driving and more — each one leads with the apps that fit it."
     )
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(Spacing.lg))
     Highlight(
         Icons.Default.NotificationsOff,
         "Fewer interruptions",
@@ -298,14 +295,14 @@ private fun HomeAppStep(isDefaultHome: Boolean, onGranted: () -> Unit) {
     }
 
     if (roleRequestFailed) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Spacing.sm))
         Text(
             text = "No change yet. Some devices do not show that dialog — you can " +
                 "pick Portal in system settings instead.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Spacing.sm))
         OutlinedButton(
             onClick = { context.startActivitySafely(DefaultHomeStatus.homeSettingsIntent()) },
             modifier = Modifier.fillMaxWidth()
@@ -329,55 +326,16 @@ private fun ProfileStep(viewModel: SetupViewModel) {
         body = "A profile decides which apps your home screen leads with. Everything " +
             "else stays in the app drawer, and you can switch or edit profiles later."
     )
-    Column(
-        modifier = Modifier.selectableGroup(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    // The kit group rounds the ends and keeps the options reading as one list, rather
+    // than as a stack of unrelated cards. No gutter of its own — the setup Column
+    // already provides the page margin, and a second one would indent the options
+    // past the text above them.
+    PortalGroup(modifier = Modifier.selectableGroup(), gutter = 0.dp) {
         profiles.forEach { profile ->
-            ProfileOption(
-                profile = profile,
+            SelectableRow(
+                title = profile.name,
                 selected = profile.id == selectedId,
                 onSelect = { viewModel.selectProfile(profile.id) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProfileOption(
-    profile: ProfileEntity,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        onClick = onSelect,
-        modifier = modifier
-            .fillMaxWidth()
-            // One selectable thing to a screen reader, not a card plus a radio button.
-            .semantics(mergeDescendants = true) { role = Role.RadioButton },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            }
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // The card carries the click; this is the state indicator only, which is
-            // why it has no onClick of its own.
-            RadioButton(selected = selected, onClick = null)
-            Text(
-                text = profile.name,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 16.dp)
             )
         }
     }
@@ -405,7 +363,7 @@ private fun NotificationsStep(granted: Boolean) {
     ) {
         Text("Grant notification access")
     }
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(Spacing.sm))
     Text(
         text = "Skip this and every other part of Portal still works.",
         style = MaterialTheme.typography.bodySmall,
@@ -417,15 +375,14 @@ private fun NotificationsStep(granted: Boolean) {
 private fun GrantedCard(text: String, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
         )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(Spacing.lg),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Icon(
                 Icons.Default.CheckCircle,
@@ -441,7 +398,7 @@ private fun GrantedCard(text: String, modifier: Modifier = Modifier) {
 private fun Highlight(icon: ImageVector, title: String, body: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Column {

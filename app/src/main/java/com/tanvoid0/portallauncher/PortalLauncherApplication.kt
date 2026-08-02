@@ -4,6 +4,7 @@ import android.app.Application
 import com.tanvoid0.portallauncher.ai.GeminiNanoCategorizer
 import com.tanvoid0.portallauncher.data.AppDatabase
 import com.tanvoid0.portallauncher.data.AppRepository
+import com.tanvoid0.portallauncher.data.IconCache
 import com.tanvoid0.portallauncher.data.PreferencesRepository
 import com.tanvoid0.portallauncher.data.ProfileRepository
 import kotlinx.coroutines.CoroutineScope
@@ -17,6 +18,12 @@ class PortalLauncherApplication : Application() {
     val database: AppDatabase by lazy { AppDatabase.create(this) }
     val preferencesRepository: PreferencesRepository by lazy { PreferencesRepository(this) }
     val appRepository: AppRepository by lazy { AppRepository(this) }
+
+    /**
+     * Application-scoped so it survives navigation: a ViewModel-scoped icon cache is
+     * discarded exactly when the drawer is about to be reopened.
+     */
+    val iconCache: IconCache by lazy { IconCache(this, appRepository, appScope) }
     val profileRepository: ProfileRepository by lazy {
         ProfileRepository(database.profileDao(), database.automationConfigDao())
     }

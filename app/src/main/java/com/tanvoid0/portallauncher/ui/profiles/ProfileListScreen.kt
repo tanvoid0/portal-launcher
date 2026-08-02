@@ -1,39 +1,34 @@
 package com.tanvoid0.portallauncher.ui.profiles
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tanvoid0.portallauncher.ui.kit.EmptyState
+import com.tanvoid0.portallauncher.ui.kit.PortalGroup
+import com.tanvoid0.portallauncher.ui.kit.PortalScreen
+import com.tanvoid0.portallauncher.ui.kit.SelectableRow
+import com.tanvoid0.portallauncher.ui.kit.Spacing
 
 @Composable
 fun ProfileListScreen(
@@ -44,79 +39,70 @@ fun ProfileListScreen(
     val profiles by viewModel.profiles.collectAsState()
     val activeId by viewModel.activeProfileId.collectAsState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        // Title
-        Text(
-            text = "Profiles",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
-        )
-
-        if (profiles.isEmpty()) {
-            // Empty state: no profiles yet
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "No profiles yet",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Create a profile to switch between Study, Social, Productivity, Gaming, and more.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(onClick = { onNavigateToEdit("new") }) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Create profile")
-                        }
-                    }
+    PortalScreen(
+        title = "Profiles",
+        subtitle = "The active profile decides which apps your home screen leads with.",
+        modifier = modifier,
+        floatingAction = if (profiles.isEmpty()) {
+            null
+        } else {
+            {
+                FloatingActionButton(onClick = { onNavigateToEdit("new") }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add profile")
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                contentPadding = PaddingValues(bottom = 80.dp),
-                content = {
-                    items(profiles, key = { it.id }) { profile ->
-                        ListItem(
-                            headlineContent = { Text(profile.name) },
-                            supportingContent = { Text(profile.type) },
-                            leadingContent = {
-                                RadioButton(
-                                    selected = profile.id == activeId,
-                                    onClick = { viewModel.setActiveProfile(profile.id) }
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onNavigateToEdit(profile.id) }
-                        )
+        }
+    ) {
+        if (profiles.isEmpty()) {
+            EmptyState(
+                title = "No profiles yet",
+                body = "Create a profile to switch between Study, Social, Productivity, " +
+                    "Gaming, and more.",
+                icon = Icons.Default.Person,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                action = {
+                    Button(onClick = { onNavigateToEdit("new") }) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(Spacing.sm))
+                        Text("Create profile")
                     }
                 }
             )
-            FloatingActionButton(
-                onClick = { onNavigateToEdit("new") },
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add profile")
+        } else {
+            // ponytail: plain scroll, not lazy — a profile list is a handful of rows and
+            // PortalGroup needs its children in one column to round the ends. Move to a
+            // LazyColumn of groups if profiles ever become unbounded.
+            Box(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 96.dp)
+                ) {
+                    PortalGroup(modifier = Modifier.selectableGroup()) {
+                        profiles.forEach { profile ->
+                            // Tapping the row activates the profile; the pencil edits it.
+                            // Previously the row edited and the radio button activated,
+                            // which put two unrelated actions on one row with no label
+                            // saying which was which.
+                            SelectableRow(
+                                title = profile.name,
+                                subtitle = profile.type,
+                                selected = profile.id == activeId,
+                                onSelect = { viewModel.setActiveProfile(profile.id) },
+                                trailing = {
+                                    IconButton(onClick = { onNavigateToEdit(profile.id) }) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "Edit ${profile.name}"
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
