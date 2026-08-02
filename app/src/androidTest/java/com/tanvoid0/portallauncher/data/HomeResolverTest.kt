@@ -10,17 +10,19 @@ import org.junit.runner.RunWith
 
 /**
  * These functions decide what appears on someone's home screen, so each rule that is
- * easy to get subtly wrong is pinned: the fallback, pins outranking the category
- * filter, pins whose app went away, and hiding beating both.
+ * easy to get subtly wrong is pinned: the fallback, placements outranking the category
+ * filter, cells whose app went away, widgets whose provider went away, and hiding
+ * beating all of it.
  *
  * Instrumented rather than a JVM test only because [LaunchableApp] holds a real
- * [android.os.UserHandle], which has no constructor available off-device. The logic
- * under test is pure — nothing here touches a database or a system service.
+ * [android.os.UserHandle], which has no constructor available off-device. The placement
+ * rules themselves are in [HomeGridTest], which needs no device at all.
  */
 @RunWith(AndroidJUnit4::class)
 class HomeResolverTest {
 
     private val me = Process.myUserHandle()
+    private val grid = GridSize(columns = 4, rows = 5)
 
     private fun app(pkg: String, label: String = pkg) = LaunchableApp(
         packageName = pkg,
@@ -32,75 +34,111 @@ class HomeResolverTest {
         systemCategory = 0
     )
 
-    private fun pin(app: LaunchableApp, position: Int) = homeItemFor(app, "study", position)
+    private fun placed(app: LaunchableApp, x: Int, y: Int = 0, page: Int = 0) =
+        homeCellFor(app, "study", Slot(page, x, y))
+
+    private fun widget(appWidgetId: Int, x: Int = 0, y: Int = 0) = HomeCellEntity(
+        profileId = "study",
+        page = 0,
+        cellX = x,
+        cellY = y,
+        spanX = 2,
+        spanY = 2,
+        kind = HomeCellEntity.KIND_WIDGET,
+        packageName = "com.example.clock",
+        activityName = "com.example.clock.Provider",
+        userSerial = 0L,
+        appWidgetId = appWidgetId
+    )
 
     private val notes = app("com.example.notes", "Notes")
     private val game = app("com.example.game", "Game")
     private val mail = app("com.example.mail", "Mail")
     private val installed = listOf(notes, game, mail)
 
+    private fun resolve(
+        cells: List<HomeCellEntity>,
+        categoryFiltered: List<LaunchableApp> = emptyList(),
+        liveWidgetIds: Set<Int> = emptySet(),
+        fallbackLimit: Int = 8,
+        isCustomised: Boolean = true
+    ) = resolveHomeEntries(
+        cells = cells,
+        installed = installed,
+        categoryFiltered = categoryFiltered,
+        liveWidgetIds = liveWidgetIds,
+        profileId = "study",
+        grid = grid,
+        fallbackLimit = fallbackLimit,
+        isCustomised = isCustomised
+    )
+
+    private fun apps(entries: List<HomeEntry>) =
+        entries.filterIsInstance<HomeEntry.App>().map { it.app }
+
     @Test
-    fun beforeAnyCustomisation_fallsBackToTheCategoryFilterAndRespectsTheLimit() {
-        val resolved = resolveHomeApps(
-            pinned = emptyList(),
-            installed = installed,
+    fun beforeAnyCustomisationFallsBackToTheCategoryFilterAndRespectsTheLimit() {
+        val resolved = resolve(
+            cells = emptyList(),
             categoryFiltered = listOf(notes, mail),
             fallbackLimit = 1,
             isCustomised = false
         )
-        assertEquals(listOf(notes), resolved)
+        assertEquals(listOf(notes), apps(resolved))
+    }
+
+    @Test
+    fun theFallbackLaysAppsOutInReadingOrderOnPageOne() {
+        val resolved = resolve(
+            cells = emptyList(),
+            categoryFiltered = listOf(notes, mail, game),
+            isCustomised = false
+        )
+        assertEquals(
+            listOf(Slot(0, 0, 0), Slot(0, 1, 0), Slot(0, 2, 0)),
+            resolved.map { it.cell.slot }
+        )
     }
 
     @Test
     fun anEmptyCustomLayoutStaysEmpty() {
-        // The bug this guards: inferring the fallback from `pinned.isEmpty()` meant
-        // unpinning the last app brought every removed app straight back.
-        val resolved = resolveHomeApps(
-            pinned = emptyList(),
-            installed = installed,
+        // The bug this guards: inferring the fallback from an empty layout meant
+        // removing the last icon brought every removed app straight back.
+        val resolved = resolve(
+            cells = emptyList(),
             categoryFiltered = listOf(notes, mail, game),
-            fallbackLimit = 8,
             isCustomised = true
         )
-        assertEquals(emptyList<LaunchableApp>(), resolved)
+        assertEquals(emptyList<LaunchableApp>(), apps(resolved))
     }
 
     @Test
-    fun pinnedAppsOutrankTheCategoryFilter() {
-        // `game` is not in categoryFiltered at all; pinning it must still show it,
+    fun placedAppsOutrankTheCategoryFilter() {
+        // `game` is not in categoryFiltered at all; placing it must still show it,
         // otherwise an explicit choice loses to a category guess.
-        val resolved = resolveHomeApps(
-            pinned = listOf(pin(game, 0)),
-            installed = installed,
-            categoryFiltered = listOf(notes, mail),
-            fallbackLimit = 8,
-            isCustomised = true
+        val resolved = resolve(
+            cells = listOf(placed(game, 0)),
+            categoryFiltered = listOf(notes, mail)
         )
-        assertEquals(listOf(game), resolved)
+        assertEquals(listOf(game), apps(resolved))
     }
 
     @Test
-    fun pinnedAppsComeBackInStoredOrder() {
-        val resolved = resolveHomeApps(
-            pinned = listOf(pin(mail, 2), pin(notes, 0), pin(game, 1)),
-            installed = installed,
-            categoryFiltered = emptyList(),
-            fallbackLimit = 8,
-            isCustomised = true
+    fun aPlacedAppThatIsNoLongerInstalledIsSkipped() {
+        val resolved = resolve(
+            cells = listOf(placed(notes, 0), placed(app("com.example.gone"), 1))
         )
-        assertEquals(listOf(notes, game, mail), resolved)
+        assertEquals(listOf(notes), apps(resolved))
     }
 
     @Test
-    fun aPinnedAppThatIsNoLongerInstalledIsSkipped() {
-        val resolved = resolveHomeApps(
-            pinned = listOf(pin(notes, 0), pin(app("com.example.gone"), 1)),
-            installed = installed,
-            categoryFiltered = emptyList(),
-            fallbackLimit = 8,
-            isCustomised = true
-        )
-        assertEquals(listOf(notes), resolved)
+    fun aWidgetSurvivesOnlyWhileTheHostStillHoldsIt() {
+        val cells = listOf(widget(appWidgetId = 7), placed(notes, 2))
+        assertEquals(2, resolve(cells, liveWidgetIds = setOf(7)).size)
+        // Provider uninstalled: the row stays so a reinstall brings it back, but an
+        // empty rectangle must not be drawn in the meantime.
+        assertEquals(listOf(notes), apps(resolve(cells, liveWidgetIds = emptySet())))
+        assertTrue(resolve(cells, liveWidgetIds = emptySet()).none { it is HomeEntry.Widget })
     }
 
     @Test
@@ -129,11 +167,13 @@ class HomeResolverTest {
     }
 
     @Test
-    fun isPinnedMatchesOnIdentityNotOnLabel() {
-        val pinned = listOf(pin(notes, 0))
-        assertTrue(isPinned(pinned, notes))
+    fun isOnHomeMatchesOnIdentityNotOnLabel() {
+        val cells = listOf(placed(notes, 0))
+        assertTrue(isOnHome(cells, notes))
         // Same package, renamed: still the same app.
-        assertTrue(isPinned(pinned, notes.copy(customLabel = "Something else")))
-        assertFalse(isPinned(pinned, game))
+        assertTrue(isOnHome(cells, notes.copy(customLabel = "Something else")))
+        assertFalse(isOnHome(cells, game))
+        // A widget's package is a provider, never an app the drawer can launch.
+        assertFalse(isOnHome(listOf(widget(1)), app("com.example.clock")))
     }
 }

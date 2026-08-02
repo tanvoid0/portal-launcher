@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 /**
  * What the user changed about one app: hidden it, renamed it, or both.
  *
- * Deliberately **not** per profile, unlike [HomeItemEntity]. Per-profile visibility is
+ * Deliberately **not** per profile, unlike [HomeCellEntity]. Per-profile visibility is
  * already what categories do; "hide this app" and "call it something else" are
  * statements about the app itself, so scoping them per profile would mean the user
  * hiding the same thing seven times.

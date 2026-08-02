@@ -4,6 +4,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -134,7 +135,101 @@ class MigrationTest {
     }
 
     @Test
-    fun deletingAProfileTakesItsHomeLayoutWithIt() {
+    fun migrate5To6_convertsTheFlatLayoutIntoPagedCells() {
+        helper.createDatabase(TEST_DB, 5).use { db ->
+            db.execSQL(
+                "INSERT INTO profiles (id, name, iconResName, type, enabledAutomationIds, sortOrder) " +
+                    "VALUES ('study', 'Study', 'study', 'Study', '', 0)"
+            )
+            // Position 0 is the top-left cell, 5 is the second cell of the second row,
+            // and 20 is the first cell of the second page.
+            listOf(0, 5, 20).forEach { position ->
+                db.execSQL(
+                    "INSERT INTO home_item (profileId, packageName, activityName, userSerial, position) " +
+                        "VALUES ('study', 'com.example.a$position', 'com.example.a$position.Main', 0, $position)"
+                )
+            }
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            6,
+            true,
+            AppDatabaseMigrations.MIGRATION_5_6
+        )
+
+        // The layout is converted, not dropped. Getting this wrong empties the home
+        // screen of everyone who upgrades, which no crash would announce.
+        db.query(
+            "SELECT packageName, page, cellX, cellY, spanX, spanY, kind, appWidgetId " +
+                "FROM home_cell ORDER BY page, cellY, cellX"
+        ).use { c ->
+            assertTrue("home layout was lost by the migration", c.moveToFirst())
+            assertEquals("com.example.a0", c.getString(0))
+            assertEquals(0, c.getInt(1))
+            assertEquals(0, c.getInt(2))
+            assertEquals(0, c.getInt(3))
+            assertEquals(1, c.getInt(4))
+            assertEquals(1, c.getInt(5))
+            assertEquals("app", c.getString(6))
+            assertEquals(0, c.getInt(7))
+
+            assertTrue(c.moveToNext())
+            assertEquals("com.example.a5", c.getString(0))
+            assertEquals(0, c.getInt(1))
+            assertEquals(1, c.getInt(2))
+            assertEquals(1, c.getInt(3))
+
+            assertTrue(c.moveToNext())
+            assertEquals("com.example.a20", c.getString(0))
+            assertEquals(1, c.getInt(1))
+            assertEquals(0, c.getInt(2))
+            assertEquals(0, c.getInt(3))
+
+            assertFalse("the migration invented rows", c.moveToNext())
+        }
+
+        // Two tables both claiming to be the home layout is how one of them goes stale.
+        db.query(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'home_item'"
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("home_item should have been dropped", 0, c.getInt(0))
+        }
+    }
+
+    @Test
+    fun deletingAProfileTakesItsHomeCellsWithIt() {
+        helper.createDatabase(TEST_DB, 5).use { db ->
+            db.execSQL(
+                "INSERT INTO profiles (id, name, iconResName, type, enabledAutomationIds, sortOrder) " +
+                    "VALUES ('gaming', 'Gaming', 'gaming', 'Gaming', '', 0)"
+            )
+        }
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            6,
+            true,
+            AppDatabaseMigrations.MIGRATION_5_6
+        )
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL(
+            "INSERT INTO home_cell (profileId, page, cellX, cellY, spanX, spanY, kind, " +
+                "packageName, activityName, userSerial, appWidgetId) " +
+                "VALUES ('gaming', 0, 0, 0, 1, 1, 'app', 'com.example.game', " +
+                "'com.example.game.Main', 0, 0)"
+        )
+
+        db.execSQL("DELETE FROM profiles WHERE id = 'gaming'")
+
+        db.query("SELECT count(*) FROM home_cell").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("home_cell outlived its profile — the cascade is not wired", 0, c.getInt(0))
+        }
+    }
+
+    @Test
+    fun deletingAProfileTakesItsLegacyHomeLayoutWithIt() {
         helper.createDatabase(TEST_DB, 2).use { db ->
             db.execSQL(
                 "INSERT INTO profiles (id, name, iconResName, type, enabledAutomationIds, sortOrder) " +

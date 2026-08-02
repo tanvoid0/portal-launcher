@@ -19,10 +19,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProfileEntity::class,
         AutomationConfigEntity::class,
         AiCategoryEntity::class,
-        HomeItemEntity::class,
+        HomeCellEntity::class,
         AppOverrideEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -31,7 +31,7 @@ abstract class AppDatabase : androidx.room.RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun automationConfigDao(): AutomationConfigDao
     abstract fun aiCategoryDao(): AiCategoryDao
-    abstract fun homeItemDao(): HomeItemDao
+    abstract fun homeCellDao(): HomeCellDao
     abstract fun appOverrideDao(): AppOverrideDao
 
     companion object {
@@ -69,7 +69,7 @@ object AppDatabaseMigrations {
      * Adds the home layout table: which apps the user put on which profile's home
      * screen, in what order.
      *
-     * This SQL has to match what Room generates for [HomeItemEntity] exactly —
+     * This SQL has to match what Room generated for the entity of the day exactly —
      * column order, the composite primary key, the foreign key clause and the index
      * name. `runMigrationsAndValidate` diffs the result against the exported schema
      * and fails on any difference, which is the point of exporting them.
@@ -127,6 +127,63 @@ object AppDatabaseMigrations {
         }
     }
 
+    /**
+     * Replaces the flat home layout with a paged grid that can also hold widgets.
+     *
+     * `home_item` stored a single `position: Int`, which cannot describe a rectangle and
+     * therefore cannot describe a widget. `home_cell` stores a page and a top-left cell
+     * with spans — see [HomeCellEntity] for why apps and widgets share one table.
+     *
+     * The existing layout is *converted*, not discarded: a position becomes a cell by
+     * the reading-order arithmetic in [LegacyLayout], which a backup written by an older
+     * build reads the same way.
+     *
+     * `home_item` is dropped rather than left behind. Two tables that both claim to be
+     * the home layout is exactly how one of them goes stale.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `home_cell` (" +
+                    "`profileId` TEXT NOT NULL, " +
+                    "`page` INTEGER NOT NULL, " +
+                    "`cellX` INTEGER NOT NULL, " +
+                    "`cellY` INTEGER NOT NULL, " +
+                    "`spanX` INTEGER NOT NULL, " +
+                    "`spanY` INTEGER NOT NULL, " +
+                    "`kind` TEXT NOT NULL, " +
+                    "`packageName` TEXT NOT NULL, " +
+                    "`activityName` TEXT NOT NULL, " +
+                    "`userSerial` INTEGER NOT NULL, " +
+                    "`appWidgetId` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`profileId`, `page`, `cellX`, `cellY`), " +
+                    "FOREIGN KEY(`profileId`) REFERENCES `profiles`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE CASCADE)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_home_cell_profileId` ON `home_cell` (`profileId`)"
+            )
+            // Positions are unique within a profile (they are only ever written as
+            // max+1 or as a full reindex), so the derived primary key cannot collide.
+            db.execSQL(
+                "INSERT INTO `home_cell` (`profileId`, `page`, `cellX`, `cellY`, `spanX`, " +
+                    "`spanY`, `kind`, `packageName`, `activityName`, `userSerial`, `appWidgetId`) " +
+                    "SELECT `profileId`, `position` / ${LegacyLayout.PER_PAGE}, " +
+                    "(`position` % ${LegacyLayout.PER_PAGE}) % ${LegacyLayout.COLUMNS}, " +
+                    "(`position` % ${LegacyLayout.PER_PAGE}) / ${LegacyLayout.COLUMNS}, " +
+                    "1, 1, 'app', `packageName`, `activityName`, `userSerial`, 0 " +
+                    "FROM `home_item`"
+            )
+            db.execSQL("DROP TABLE `home_item`")
+        }
+    }
+
     val all: Array<Migration>
-        get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        get() = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6
+        )
 }

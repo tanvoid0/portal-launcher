@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.first
 class BackupRepository(
     private val profileDao: ProfileDao,
     private val automationConfigDao: AutomationConfigDao,
-    private val homeItemDao: HomeItemDao,
+    private val homeCellDao: HomeCellDao,
     private val appOverrideDao: AppOverrideDao,
     private val preferencesRepository: PreferencesRepository
 ) {
@@ -32,9 +32,19 @@ class BackupRepository(
                     automationConfigs = automationConfigDao
                         .getConfigsForProfile(profile.id).first()
                         .associate { it.automationId to it.configJson },
-                    homeItems = homeItemDao.observeForProfile(profile.id).first().map {
-                        BackupHomeItem(it.packageName, it.activityName, it.userSerial, it.position)
-                    }
+                    // Widgets are per device and are not exported — see BackupProfile.
+                    homeCells = homeCellDao.getForProfile(profile.id)
+                        .filterNot { it.isWidget }
+                        .map {
+                            BackupHomeCell(
+                                packageName = it.packageName,
+                                activityName = it.activityName,
+                                userSerial = it.userSerial,
+                                page = it.page,
+                                cellX = it.cellX,
+                                cellY = it.cellY
+                            )
+                        }
                 )
             },
             overrides = appOverrideDao.observeAll().first(),
@@ -47,8 +57,13 @@ class BackupRepository(
      * Replaces the current configuration with [backup].
      *
      * Deletes by id from the *existing* set rather than truncating tables, because
-     * `home_item` and `automation_config` cascade from `profiles` and a truncate would
+     * `home_cell` and `automation_config` cascade from `profiles` and a truncate would
      * have to get the order right to avoid leaving orphans.
+     *
+     * Widgets the old layout held are freed by
+     * [com.tanvoid0.portallauncher.widgets.LauncherWidgetHost.sweepOrphans] on the next
+     * start: the cascade takes their rows without telling the widget host, and there is
+     * no Context here to tell it.
      */
     suspend fun restore(backup: LauncherBackup): RestoreResult {
         BackupCodec.validate(backup)?.let { return it }
@@ -74,12 +89,7 @@ class BackupRepository(
                     AutomationConfigEntity(profile.id, automationId, configJson)
                 )
             }
-            homeItemDao.replaceForProfile(
-                profile.id,
-                profile.homeItems.map {
-                    HomeItemEntity(profile.id, it.packageName, it.activityName, it.userSerial, it.position)
-                }
-            )
+            homeCellDao.replaceForProfile(profile.id, profile.homeCellsForRestore())
             preferencesRepository.setLayoutCustomised(
                 profile.id,
                 profile.id in backup.customLayoutProfileIds

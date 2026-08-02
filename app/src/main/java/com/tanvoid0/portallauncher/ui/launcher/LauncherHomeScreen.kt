@@ -4,12 +4,12 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -23,17 +23,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -59,24 +58,33 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tanvoid0.portallauncher.data.GridSize
+import com.tanvoid0.portallauncher.data.HomeCellEntity
+import com.tanvoid0.portallauncher.data.HomeEntry
 import com.tanvoid0.portallauncher.data.LaunchableApp
+import com.tanvoid0.portallauncher.data.PreferencesRepository
+import com.tanvoid0.portallauncher.data.Slot
+import com.tanvoid0.portallauncher.data.slot
 import com.tanvoid0.portallauncher.ui.kit.EmptyState
 import com.tanvoid0.portallauncher.ui.kit.GlassSurface
 import com.tanvoid0.portallauncher.ui.kit.OnWallpaperTextStyle
+import com.tanvoid0.portallauncher.ui.kit.PortalGroup
+import com.tanvoid0.portallauncher.ui.kit.PortalRow
 import com.tanvoid0.portallauncher.ui.kit.Spacing
 import com.tanvoid0.portallauncher.ui.kit.glassColor
+import com.tanvoid0.portallauncher.widgets.WidgetPlacement
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val HOME_GRID_COLUMNS = 4
 private val ICON_SIZE = 48.dp
 private val CELL_SIZE = 56.dp
 
@@ -99,6 +107,8 @@ private val DOCK_PACKAGES = listOf(
 fun LauncherHomeScreen(
     modifier: Modifier = Modifier,
     viewModel: LauncherViewModel = viewModel(),
+    /** Null where there is no Activity to run a widget's system screens on. */
+    widgetPlacement: WidgetPlacement? = null,
     onOpenProfiles: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
@@ -108,11 +118,13 @@ fun LauncherHomeScreen(
     // button means "show me my apps". Only the first should raise the keyboard.
     var drawerOpenedForSearch by remember { mutableStateOf(false) }
     var menuApp by remember { mutableStateOf<LaunchableApp?>(null) }
+    var menuWidget by remember { mutableStateOf<Slot?>(null) }
+    var homeOptionsOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Either the user's pinned layout or the profile's category default — the
-    // resolver decides, and already applies the count limit. See resolveHomeApps.
-    val homeApps = uiState.homeApps
+    // Either the user's own layout or the profile's category default — the resolver
+    // decides, and already applies the count limit. See resolveHomeEntries.
+    val homeEntries = uiState.homeEntries
     // Dock and drawer deliberately ignore the profile filter — see LauncherUiState.
     val dockApps = remember(uiState.allApps) { resolveDockApps(uiState.allApps) }
     val swipeThresholdPx = with(LocalDensity.current) { SWIPE_UP_THRESHOLD.toPx() }
@@ -138,6 +150,12 @@ fun LauncherHomeScreen(
                         }
                     }
                 ) { _, delta -> travelled += delta }
+            }
+            // Long-pressing the wallpaper is where widgets and the grid size live. It
+            // only fires on empty space: an icon's own detector consumes the press
+            // first, and this ancestor never sees it.
+            .pointerInput(Unit) {
+                detectTapGestures(onLongPress = { homeOptionsOpen = true })
             }
     ) {
         Column(
@@ -182,7 +200,7 @@ fun LauncherHomeScreen(
 
             Spacer(modifier = Modifier.height(Spacing.xl))
 
-            if (homeApps.isEmpty() && uiState.allApps.isNotEmpty()) {
+            if (homeEntries.isEmpty() && uiState.allApps.isNotEmpty()) {
                 // Two different empty states, and saying the wrong one is worse than
                 // saying nothing: "nothing matches this profile" is a lie to someone
                 // who just unpinned everything on purpose. Both still offer a way out —
@@ -220,40 +238,28 @@ fun LauncherHomeScreen(
                         .fillMaxWidth()
                 )
             } else {
-                // Sized to its content, not weight(1f). A weighted grid stretches over
-                // the empty half of the screen, and its scroll modifier then swallows
-                // the swipe-up that should open the drawer even with nothing to scroll —
-                // which is exactly how the gesture silently did nothing.
-                //
-                // ponytail: caps the home screen at one screenful. Pin more than fits
-                // and the grid runs under the dock rather than scrolling. Multi-page
-                // home is explicitly out of v1.0 (see PRODUCTION_PLAN.md §5); if that
-                // changes, this needs a scrollable region plus nested-scroll handling to
-                // keep the gesture alive.
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(HOME_GRID_COLUMNS),
-                    contentPadding = PaddingValues(
-                        horizontal = Spacing.lg,
-                        vertical = Spacing.sm
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-                    userScrollEnabled = false,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(homeApps, key = { it.key }) { app ->
-                        AppIconCell(
-                            app = app,
-                            viewModel = viewModel,
-                            onClick = { viewModel.launch(app) },
-                            onLongClick = { menuApp = app },
-                            onWallpaper = true
-                        )
-                    }
-                }
-                // The gesture surface. Everything above is laid out; this is the part of
-                // the home screen you can actually swipe up from.
-                Spacer(modifier = Modifier.weight(1f))
+                // Weighted, so the grid owns the space between the glance card and the
+                // dock and the cell size follows from it. This used to be forbidden:
+                // a weighted LazyVerticalGrid stretched over the empty half of the
+                // screen and its scroll modifier swallowed the swipe-up that opens the
+                // drawer. HorizontalPager only claims horizontal drags, so the vertical
+                // gesture on the enclosing Box still gets through.
+                HomePager(
+                    entries = homeEntries,
+                    grid = uiState.grid,
+                    pageCount = uiState.pageCount,
+                    viewModel = viewModel,
+                    onOpenMenu = { entry ->
+                        when (entry) {
+                            is HomeEntry.App -> menuApp = entry.app
+                            is HomeEntry.Widget -> menuWidget = entry.cell.slot
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.sm)
+                )
             }
 
             Dock(
@@ -290,7 +296,154 @@ fun LauncherHomeScreen(
         menuApp?.let { app ->
             AppContextMenu(app = app, viewModel = viewModel, onDismiss = { menuApp = null })
         }
+
+        // Looked up live rather than captured when the menu opened: the menu resizes the
+        // widget without closing, so a captured copy would still say 2 × 2 after the
+        // first "Wider" and every further tap would ask for a size it already has.
+        menuWidget?.let { slot ->
+            uiState.cells.firstOrNull { it.slot == slot }?.let { cell ->
+                WidgetContextMenu(
+                    cell = cell,
+                    viewModel = viewModel,
+                    onDismiss = { menuWidget = null }
+                )
+            }
+        }
+
+        if (homeOptionsOpen) {
+            // Approximate cell size, only used to pick a widget's starting span — the
+            // exact one is not known outside the grid's own layout pass, and being a
+            // cell out means a widget that arrives one cell too big and is resized.
+            val windowWidth = LocalWindowInfo.current.containerSize.width
+            val cellDp = with(LocalDensity.current) {
+                (windowWidth / uiState.grid.columns).toDp().value.toInt()
+            }
+            HomeOptionsSheet(
+                grid = uiState.grid,
+                cellDp = cellDp,
+                hasCustomLayout = uiState.hasCustomLayout,
+                widgetPlacement = widgetPlacement,
+                viewModel = viewModel,
+                onDismiss = { homeOptionsOpen = false }
+            )
+        }
     }
+}
+
+/**
+ * What long-pressing the wallpaper offers.
+ *
+ * Pages are deliberately absent. They are created by dragging an icon onto the spare
+ * page at the end and removed when the last thing leaves them, so there is no page to
+ * add, name, reorder or delete — and therefore no screen for it. See [HomePager].
+ *
+ * The widget picker swaps into this sheet rather than opening a second one, which
+ * silently lost the race against this one closing. Same shape as [AppContextMenu].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeOptionsSheet(
+    grid: GridSize,
+    cellDp: Int,
+    hasCustomLayout: Boolean,
+    widgetPlacement: WidgetPlacement?,
+    viewModel: LauncherViewModel,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState()
+    var choosingWidget by remember { mutableStateOf(false) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        if (choosingWidget) {
+            WidgetPickerContent(
+                grid = grid,
+                cellWidthDp = cellDp,
+                cellHeightDp = cellDp,
+                placement = widgetPlacement,
+                viewModel = viewModel,
+                onDismiss = onDismiss
+            )
+            return@ModalBottomSheet
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = Spacing.lg)
+        ) {
+            Text(
+                text = "Home screen",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md)
+            )
+            PortalGroup {
+                PortalRow(
+                    icon = Icons.Default.Widgets,
+                    title = "Add widget",
+                    onClick = { choosingWidget = true }
+                )
+                PortalRow(
+                    icon = Icons.Default.GridView,
+                    title = "Grid",
+                    subtitle = "${grid.columns} columns × ${grid.rows} rows",
+                    trailing = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            GridStep(
+                                label = "−",
+                                enabled = grid.columns > PreferencesRepository.MIN_COLUMNS,
+                                onClick = {
+                                    viewModel.setGrid(grid.copy(columns = grid.columns - 1))
+                                }
+                            )
+                            GridStep(
+                                label = "+",
+                                enabled = grid.columns < PreferencesRepository.MAX_COLUMNS,
+                                onClick = {
+                                    viewModel.setGrid(grid.copy(columns = grid.columns + 1))
+                                }
+                            )
+                        }
+                    }
+                )
+                PortalRow(
+                    icon = Icons.Default.Height,
+                    title = "Rows",
+                    subtitle = "Taller cells fit fewer, larger icons",
+                    trailing = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            GridStep(
+                                label = "−",
+                                enabled = grid.rows > PreferencesRepository.MIN_ROWS,
+                                onClick = { viewModel.setGrid(grid.copy(rows = grid.rows - 1)) }
+                            )
+                            GridStep(
+                                label = "+",
+                                enabled = grid.rows < PreferencesRepository.MAX_ROWS,
+                                onClick = { viewModel.setGrid(grid.copy(rows = grid.rows + 1)) }
+                            )
+                        }
+                    }
+                )
+                if (hasCustomLayout) {
+                    // The way back from a layout the user no longer wants. Without it,
+                    // taking the grid over is a one-way door.
+                    PortalRow(
+                        icon = Icons.Default.Restore,
+                        title = "Reset home screen",
+                        subtitle = "Back to this profile's categories. Removes its widgets.",
+                        onClick = {
+                            viewModel.resetLayout()
+                            onDismiss()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GridStep(label: String, enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, enabled = enabled) { Text(label) }
 }
 
 /**
@@ -429,19 +582,23 @@ private fun Dock(
  * [onWallpaper] must be true on the home screen and false in the app drawer: the
  * drawer sits on an opaque sheet where white-on-white would disappear, and the home
  * screen sits on the wallpaper where a theme colour would.
+ *
+ * Pass a null [onClick] on the home grid, where the enclosing cell owns tap, long press
+ * and drag as one gesture — a second clickable inside it would announce the same app
+ * twice to a screen reader and steal the press the drag needs.
  */
 @Composable
 internal fun AppIconCell(
     app: LaunchableApp,
     viewModel: LauncherViewModel,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)?,
     onWallpaper: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .clickableCell(onClick, onLongClick)
+            .then(if (onClick != null) Modifier.clickableCell(onClick, onLongClick) else Modifier)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

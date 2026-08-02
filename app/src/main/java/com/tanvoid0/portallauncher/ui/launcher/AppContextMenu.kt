@@ -61,7 +61,7 @@ fun AppContextMenu(
     val sheetState = rememberModalBottomSheetState()
     var renaming by remember { mutableStateOf(false) }
     var choosingCategory by remember { mutableStateOf(false) }
-    val isPinned = remember(app.key) { viewModel.isPinnedToHome(app) }
+    val onHome = remember(app.key) { viewModel.isOnHomeScreen(app) }
     val resolvedCategory = viewModel.categoryOf(app)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
@@ -117,9 +117,9 @@ fun AppContextMenu(
             PortalGroup {
                 PortalRow(
                     icon = Icons.Default.PushPin,
-                    title = if (isPinned) "Remove from home" else "Pin to home",
+                    title = if (onHome) "Remove from home" else "Add to home",
                     onClick = {
-                        viewModel.togglePin(app)
+                        viewModel.toggleOnHome(app)
                         onDismiss()
                     }
                 )

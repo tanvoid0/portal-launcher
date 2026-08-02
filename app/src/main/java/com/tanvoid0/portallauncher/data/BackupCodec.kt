@@ -52,10 +52,28 @@ data class BackupProfile(
     val sortOrder: Int = 0,
     /** Automation id to its config JSON, exactly as stored. */
     val automationConfigs: Map<String, String> = emptyMap(),
-    /** Pinned home items, in order. Empty means the profile uses its category default. */
-    val homeItems: List<BackupHomeItem> = emptyList()
+    /**
+     * The flat home layout written by builds before paged home screens. Read on restore
+     * and converted through [LegacyLayout]; never written any more. Kept because a
+     * backup is a file the user may have had for months, and refusing to read one we
+     * wrote is the one thing this format promised not to do.
+     */
+    val homeItems: List<BackupHomeItem> = emptyList(),
+    /**
+     * Apps placed on the home screen, with their page and cell. Empty means the profile
+     * uses its category default.
+     *
+     * Widgets are deliberately **not** here. A widget's identity is an id the system
+     * allocated to this install, and its settings live inside the provider's own
+     * storage — restoring the id onto another device, or after the provider was
+     * reinstalled, names a widget that does not exist. Writing them would produce rows
+     * that are dropped on sight for the life of the install; leaving them out says the
+     * true thing, which is that widgets are placed per device.
+     */
+    val homeCells: List<BackupHomeCell> = emptyList()
 )
 
+/** Pre-pages layout entry. Read-only: see [BackupProfile.homeItems]. */
 @Serializable
 data class BackupHomeItem(
     val packageName: String,
@@ -63,6 +81,52 @@ data class BackupHomeItem(
     val userSerial: Long,
     val position: Int
 )
+
+@Serializable
+data class BackupHomeCell(
+    val packageName: String,
+    val activityName: String,
+    val userSerial: Long,
+    val page: Int,
+    val cellX: Int,
+    val cellY: Int
+)
+
+/**
+ * The rows to write for this profile's home screen.
+ *
+ * Prefers [BackupProfile.homeCells]; falls back to converting [BackupProfile.homeItems]
+ * so a backup written before paged home screens still restores a layout rather than an
+ * empty grid. A file cannot contain both — nothing writes `homeItems` any more — but
+ * preferring the newer field means a hand-edited file with both is read the way its
+ * author most likely meant.
+ */
+fun BackupProfile.homeCellsForRestore(): List<HomeCellEntity> {
+    val cells = homeCells.map { Triple(it.packageName, it.activityName, it.userSerial) to
+        Slot(it.page, it.cellX, it.cellY) }
+        .ifEmpty {
+            homeItems.map {
+                Triple(it.packageName, it.activityName, it.userSerial) to
+                    LegacyLayout.slotFor(it.position)
+            }
+        }
+    return cells.map { (identity, slot) ->
+        val (packageName, activityName, userSerial) = identity
+        HomeCellEntity(
+            profileId = id,
+            page = slot.page,
+            cellX = slot.cellX,
+            cellY = slot.cellY,
+            spanX = 1,
+            spanY = 1,
+            kind = HomeCellEntity.KIND_APP,
+            packageName = packageName,
+            activityName = activityName,
+            userSerial = userSerial,
+            appWidgetId = HomeCellEntity.NO_WIDGET
+        )
+    }
+}
 
 /** Why a restore was refused. Shown to the user, so each case has to be actionable. */
 sealed interface RestoreResult {

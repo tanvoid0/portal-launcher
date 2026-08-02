@@ -79,6 +79,11 @@ Your current code is closer to a Pixel Launcher clone (icon grid, dock, search p
 
 > **Decided 2026-08-02: this option.** Widgets, folders, icon packs and
 > multi-page home are out of v1.0 — see §5. The phase estimates in §7 assume it.
+>
+> **Reopened 2026-08-02, same day:** widgets and multi-page home are back in —
+> see §12. Folders and icon packs stay out. The two that came back were taken
+> together because they share one data model; splitting them would have migrated
+> the home layout schema twice.
 
 ---
 
@@ -322,8 +327,9 @@ The one genuinely useful inheritance is the monorepo's **README discipline** —
 
 Say no to these now, in writing, or they'll eat the schedule:
 
-- Widgets (`AppWidgetHost` is a multi-week feature on its own)
-- Folders and multi-page home
+- ~~Widgets (`AppWidgetHost` is a multi-week feature on its own)~~ **reopened, see §12**
+- ~~Multi-page home~~ **reopened, see §12**
+- Folders
 - Icon packs / custom icon theming
 - Cloud sync and accounts
 - Lock screen replacement, app vault, custom notification shade
@@ -727,3 +733,100 @@ TalkBack actually announces is still unverified.
 **Everything in Play Console.** The keystore, the privacy policy, the data safety
 form, the notification-access disclosure, the store listing, staged rollout.
 These need an account and legal text; the checklist is §7 phase 9.
+
+---
+
+## 12. Widgets and multi-page home
+
+Reopened and built on 2026-08-02, hours after §1 decided to cut them. The ask was
+"support widgets and pages management like Smart Launcher"; §5's reasoning still
+stands for folders and icon packs, which stayed out.
+
+### Why one change and not two
+
+The old layout table stored a flat `position: Int` per app. A widget occupies a
+*rectangle*, so it cannot be expressed as a position, and two widgets on one page
+must not be allowed to overlap. Pages and widgets therefore needed the same
+change — a coordinate model — and doing them apart would have migrated the home
+layout schema twice for one result.
+
+`home_item` is replaced by `home_cell` (schema **v6**): `(profileId, page, cellX,
+cellY)` as the primary key, plus `spanX`/`spanY`, a `kind` of `app` or `widget`,
+and the host-allocated `appWidgetId`. The composite key makes "one thing starts
+in this cell" a database rule; overlap between spans is checked in `HomeGrid.kt`,
+which SQLite cannot express. Apps and widgets share the table on purpose: two
+tables would be two answers to "which cells are occupied", and a failed drag only
+has to happen once for them to disagree permanently.
+
+The 5→6 migration **converts** existing layouts rather than dropping them, through
+`LegacyLayout` — frozen constants (4 columns, 20 per page) that a backup written
+by an older build is read with too. `home_item` is dropped afterwards.
+
+### What binding a widget actually requires
+
+A third-party launcher **cannot** hold `BIND_APPWIDGET`; it is
+signature|privileged. So:
+
+1. `AppWidgetManager.bindAppWidgetIdIfAllowed`. If it returns false,
+2. the `ACTION_APPWIDGET_BIND` consent dialog, which grants the permission **per
+   app, once for the life of the install** — not per widget, and
+3. the provider's configuration activity, launched through
+   `AppWidgetHost.startAppWidgetConfigureActivityForResult`. From API 31 that
+   activity need not be exported, so launching it by Intent throws; the host
+   method runs it through a system-granted IntentSender. Its result arrives at
+   `Activity.onActivityResult`, which is why `MainActivity` still overrides a
+   deprecated method — no ActivityResultContract can express an IntentSender the
+   system grants.
+
+Our own picker, not `ACTION_APPWIDGET_PICK`, for the same permission reason: the
+system picker binds on the caller's behalf.
+
+Every failure path deletes the allocated id. The one it cannot cover — the process
+dying while a system screen is up — is caught by `sweepOrphans` at start-up, which
+also covers the two paths that have no Context to tell the host with: a profile
+delete cascading its cells away, and a restore replacing the table.
+
+### Pages have no management screen, on purpose
+
+A page is created by dragging an icon onto the spare page the pager grows during a
+drag, and destroyed when the last thing leaves it (`normalisePages`). So there is
+no page to add, name, reorder or delete, and therefore no UI for it. Long-pressing
+the wallpaper offers widgets and the grid size, nothing about pages.
+
+### Grid size is a setting, which made a repair routine necessary
+
+Columns and rows are adjustable (3–6 × 3–7). Narrowing the grid strands cells
+outside it, and a cell at `cellX = 5` in a four-column grid is simply never drawn —
+apps would appear to be deleted by a settings change. `reflow` puts them back,
+preferring their own page so a resize does not silently re-order a layout the user
+built. It is idempotent, which is what makes writing its result straight back
+safe: the ViewModel observes the write and finds nothing left to do.
+
+### Deliberately not done
+
+- **Folders and icon packs.** Still out, per §5.
+- **Work-profile widgets.** `installedProviders` is the current user only.
+- **Drag handles for resizing.** The menu nudges a widget a cell at a time, which
+  is the whole of what resize handles get used for.
+- **Nested scroll between a widget and the pager.** A horizontally scrolling
+  widget will fight the pager for the gesture. Marked `ponytail:` in `WidgetCell`.
+
+### Gate
+
+`assembleDebug`, `assembleRelease` (R8), `lintDebug` (warningsAsErrors, no
+baseline), 69 unit tests and 15 instrumented tests on a Galaxy SM-S948B / Android
+17 — including `migrate5To6_convertsTheFlatLayoutIntoPagedCells`, which asserts
+against the exported schema and that `home_item` is gone.
+
+**Verified on device:** the home pager renders the paged grid, and long-pressing
+the wallpaper opens the options sheet with the grid controls (dumped from the
+running app, not inferred).
+
+**Not verified on device:** the widget picker and adding a real widget end to end.
+The first attempt showed the bug described above — two `ModalBottomSheet`s swapped
+in one frame, so tapping "Add widget" returned to an empty home screen. That is
+fixed by folding the picker into the sheet already on screen, but the fix has not
+been re-run: the test phone became unavailable. This is the one thing in §12 that
+still needs a device before it can be called done, and it needs a phone that is
+not the tester's daily driver, because the bind-consent dialog is a real system
+prompt.

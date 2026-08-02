@@ -12,6 +12,7 @@ import com.tanvoid0.portallauncher.data.CrashRecorder
 import com.tanvoid0.portallauncher.data.IconCache
 import com.tanvoid0.portallauncher.data.PreferencesRepository
 import com.tanvoid0.portallauncher.data.ProfileRepository
+import com.tanvoid0.portallauncher.widgets.LauncherWidgetHost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,11 +47,18 @@ class PortalLauncherApplication : Application() {
         BackupRepository(
             profileDao = database.profileDao(),
             automationConfigDao = database.automationConfigDao(),
-            homeItemDao = database.homeItemDao(),
+            homeCellDao = database.homeCellDao(),
             appOverrideDao = database.appOverrideDao(),
             preferencesRepository = preferencesRepository
         )
     }
+
+    /**
+     * Holds every widget on the home screen. Application-scoped because widget ids are
+     * persisted: an id allocated by a host that is recreated per Activity would mean
+     * nothing after the launcher is killed, which for a home app is routine.
+     */
+    val widgetHost: LauncherWidgetHost by lazy { LauncherWidgetHost(this) }
 
     /**
      * Optional. Constructed lazily and never touched on the start-up path, so a
@@ -88,6 +96,11 @@ class PortalLauncherApplication : Application() {
             }
             // After seeding, so the first sync sees the profiles it may need to switch to.
             ProfileScheduler(this@PortalLauncherApplication).sync()
+            // Releases widget ids nothing refers to any more. Profile deletes cascade
+            // their cells away in SQLite and a restore replaces the table wholesale;
+            // neither can tell the host, so this is where those widgets are freed.
+            // See LauncherWidgetHost.sweepOrphans.
+            widgetHost.sweepOrphans(database.homeCellDao().allWidgetIds().toSet())
         }
         // Applies and reverts automations for the lifetime of the process. Started here
         // rather than from an Activity because a profile's effects must not depend on the

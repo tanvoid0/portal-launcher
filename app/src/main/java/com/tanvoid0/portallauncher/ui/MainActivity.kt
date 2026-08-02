@@ -38,6 +38,8 @@ import com.tanvoid0.portallauncher.ui.profiles.ProfileListScreen
 import com.tanvoid0.portallauncher.ui.settings.HiddenAppsScreen
 import com.tanvoid0.portallauncher.ui.settings.SettingsScreen
 import com.tanvoid0.portallauncher.ui.theme.PortalLauncherTheme
+import com.tanvoid0.portallauncher.widgets.ActivityWidgetPlacement
+import com.tanvoid0.portallauncher.widgets.LauncherWidgetHost
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 
@@ -46,11 +48,22 @@ class MainActivity : ComponentActivity() {
     /** Emits when the user presses HOME while we are already the foreground task. */
     private val homeRequested = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
+    private val widgetHost: LauncherWidgetHost by lazy {
+        (application as PortalLauncherApplication).widgetHost
+    }
+
+    /**
+     * Registered in [onCreate], because an ActivityResultLauncher cannot be created once
+     * the Activity has started.
+     */
+    private lateinit var widgetPlacement: ActivityWidgetPlacement
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Mandatory from targetSdk 35 — the system draws behind the bars whether we
         // ask or not, so opt in explicitly and handle insets per screen.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        widgetPlacement = ActivityWidgetPlacement(this, widgetHost)
         setContent {
             PortalLauncherTheme {
                 // Setup is shown until it has been finished or skipped, and that fact
@@ -147,6 +160,7 @@ class MainActivity : ComponentActivity() {
                         ) {
                             composable(Routes.LAUNCHER_HOME) {
                                 LauncherHomeScreen(
+                                    widgetPlacement = widgetPlacement,
                                     onOpenProfiles = { navController.navigate(Routes.PROFILE_LIST) },
                                     onOpenSettings = { navController.navigate(Routes.SETTINGS) }
                                 )
@@ -187,6 +201,35 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * A widget only receives updates while its host is listening, and a host that
+     * listens while the launcher is in the background wakes this process for every
+     * clock tick on the home screen. Tied to the visible lifetime for both reasons.
+     */
+    override fun onStart() {
+        super.onStart()
+        widgetHost.startListening()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        widgetHost.stopListening()
+    }
+
+    /**
+     * The result of a widget's configuration screen.
+     *
+     * Deprecated, and there is no replacement that works here: the configuration
+     * activity is launched through an IntentSender the system grants to the widget host
+     * — see [ActivityWidgetPlacement] — and no ActivityResultContract can express that.
+     */
+    @Deprecated("Required by AppWidgetHost.startAppWidgetConfigureActivityForResult")
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        widgetPlacement.onConfigureResult(requestCode, resultCode)
     }
 
     /**

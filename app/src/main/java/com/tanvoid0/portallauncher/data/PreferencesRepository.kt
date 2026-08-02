@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -43,6 +44,12 @@ private val KEY_SETUP_COMPLETE = booleanPreferencesKey("setup_complete")
  */
 private val KEY_CUSTOM_LAYOUT_PROFILE_IDS = stringSetPreferencesKey("custom_layout_profile_ids")
 
+// The home grid, in cells. Device-wide rather than per profile: it is a statement about
+// how big you want icons on this screen, not about what a profile is for — and a grid
+// that changed under you when a schedule switched profiles would move every icon.
+private val KEY_GRID_COLUMNS = intPreferencesKey("home_grid_columns")
+private val KEY_GRID_ROWS = intPreferencesKey("home_grid_rows")
+
 class PreferencesRepository(private val context: Context) {
 
     /** Profiles where the home grid is the user's own list, empty or not. */
@@ -55,6 +62,29 @@ class PreferencesRepository(private val context: Context) {
             val current = prefs[KEY_CUSTOM_LAYOUT_PROFILE_IDS] ?: emptySet()
             prefs[KEY_CUSTOM_LAYOUT_PROFILE_IDS] =
                 if (customised) current + profileId else current - profileId
+        }
+    }
+
+    /**
+     * How many cells the home screen is divided into.
+     *
+     * Clamped on read, not only on write: these are two loose integers in a preferences
+     * file that survives downgrades and restores, and a zero here would divide the
+     * screen by zero on the very first frame of the launcher.
+     */
+    val homeGrid: Flow<GridSize> = context.dataStore.data.map { prefs ->
+        GridSize(
+            columns = (prefs[KEY_GRID_COLUMNS] ?: GridSize.Default.columns)
+                .coerceIn(MIN_COLUMNS, MAX_COLUMNS),
+            rows = (prefs[KEY_GRID_ROWS] ?: GridSize.Default.rows)
+                .coerceIn(MIN_ROWS, MAX_ROWS)
+        )
+    }
+
+    suspend fun setHomeGrid(grid: GridSize) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_GRID_COLUMNS] = grid.columns.coerceIn(MIN_COLUMNS, MAX_COLUMNS)
+            prefs[KEY_GRID_ROWS] = grid.rows.coerceIn(MIN_ROWS, MAX_ROWS)
         }
     }
 
@@ -95,5 +125,17 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setSetupComplete(complete: Boolean) {
         context.dataStore.edit { prefs -> prefs[KEY_SETUP_COMPLETE] = complete }
+    }
+
+    companion object {
+        /**
+         * Grid bounds. The low end is where a widget stops having room to say anything;
+         * the high end is where a 48dp icon plus its label stops being a comfortable
+         * touch target on a phone.
+         */
+        const val MIN_COLUMNS = 3
+        const val MAX_COLUMNS = 6
+        const val MIN_ROWS = 3
+        const val MAX_ROWS = 7
     }
 }

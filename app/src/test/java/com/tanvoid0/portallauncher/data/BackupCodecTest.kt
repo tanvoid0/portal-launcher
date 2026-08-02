@@ -23,7 +23,9 @@ class BackupCodecTest {
                 enabledAutomationIds = listOf("greyscale", "app_visibility"),
                 sortOrder = 2,
                 automationConfigs = mapOf("greyscale" to """{"enabled":true,"intensity":1.0}"""),
-                homeItems = listOf(BackupHomeItem("com.example.notes", "com.example.notes.Main", 0, 0))
+                homeCells = listOf(
+                    BackupHomeCell("com.example.notes", "com.example.notes.Main", 0, 0, 1, 2)
+                )
             )
         ),
         overrides = listOf(
@@ -76,6 +78,42 @@ class BackupCodecTest {
             {"schemaVersion":1,"profiles":[],"overrides":[],"somethingNewer":{"a":1}}
         """.trimIndent()
         assertEquals(1, BackupCodec.decode(withExtra).getOrThrow().schemaVersion)
+    }
+
+    @Test
+    fun `a backup written before paged home screens still restores a layout`() {
+        // The promise this format made: a file we wrote months ago still restores after
+        // the schema moves on. `homeItems` is only ever read now, never written.
+        val old = BackupProfile(
+            id = "study",
+            name = "Study",
+            iconResName = "study",
+            type = "Study",
+            homeItems = listOf(
+                BackupHomeItem("com.example.notes", "com.example.notes.Main", 0, 0),
+                BackupHomeItem("com.example.mail", "com.example.mail.Main", 0, 5)
+            )
+        )
+        assertEquals(
+            listOf(Slot(0, 0, 0), Slot(0, 1, 1)),
+            old.homeCellsForRestore().map { it.slot }
+        )
+        assertTrue(old.homeCellsForRestore().none { it.isWidget })
+    }
+
+    @Test
+    fun `the paged layout wins over a legacy one in the same file`() {
+        val both = BackupProfile(
+            id = "study",
+            name = "Study",
+            iconResName = "study",
+            type = "Study",
+            homeItems = listOf(BackupHomeItem("com.example.old", "com.example.old.Main", 0, 0)),
+            homeCells = listOf(BackupHomeCell("com.example.new", "com.example.new.Main", 0, 1, 2, 3))
+        )
+        val restored = both.homeCellsForRestore().single()
+        assertEquals("com.example.new", restored.packageName)
+        assertEquals(Slot(1, 2, 3), restored.slot)
     }
 
     @Test
