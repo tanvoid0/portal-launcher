@@ -64,7 +64,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
 import com.tanvoid0.portallauncher.data.HomeEntry
@@ -208,27 +210,29 @@ fun LauncherHomeScreen(
                 val emptiedByUser = uiState.hasCustomLayout
                 EmptyState(
                     title = if (emptiedByUser) {
-                        "Home screen is empty"
+                        stringResource(R.string.home_empty_user_title)
                     } else {
-                        uiState.activeProfile?.name?.let { "No apps in $it" } ?: "No apps to show"
+                        uiState.activeProfile?.name
+                            ?.let { stringResource(R.string.home_empty_profile_title, it) }
+                            ?: stringResource(R.string.home_empty_none_title)
                     },
                     body = if (emptiedByUser) {
-                        "You removed every app from this profile's home screen. " +
-                            "They are all still in the drawer."
+                        stringResource(R.string.home_empty_user_body)
                     } else {
-                        "Nothing installed matches this profile's categories. " +
-                            "Every app is still in the drawer."
+                        stringResource(R.string.home_empty_profile_body)
                     },
                     icon = Icons.Default.SearchOff,
                     onWallpaper = true,
                     action = {
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                            Button(onClick = { drawerOpenedForSearch = false; appDrawerOpen = true }) { Text("Open app drawer") }
+                            Button(onClick = { drawerOpenedForSearch = false; appDrawerOpen = true }) {
+                                Text(stringResource(R.string.open_app_drawer))
+                            }
                             if (emptiedByUser) {
                                 // The way back from emptying the grid. Without it,
                                 // unpinning everything is a one-way door.
                                 OutlinedButton(onClick = viewModel::resetLayout) {
-                                    Text("Restore defaults")
+                                    Text(stringResource(R.string.restore_defaults))
                                 }
                             }
                         }
@@ -371,20 +375,20 @@ private fun HomeOptionsSheet(
                 .padding(bottom = Spacing.lg)
         ) {
             Text(
-                text = "Home screen",
+                text = stringResource(R.string.home_options_title),
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md)
             )
             PortalGroup {
                 PortalRow(
                     icon = Icons.Default.Widgets,
-                    title = "Add widget",
+                    title = stringResource(R.string.add_widget),
                     onClick = { choosingWidget = true }
                 )
                 PortalRow(
                     icon = Icons.Default.GridView,
-                    title = "Grid",
-                    subtitle = "${grid.columns} columns × ${grid.rows} rows",
+                    title = stringResource(R.string.grid),
+                    subtitle = stringResource(R.string.grid_size, grid.columns, grid.rows),
                     trailing = {
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             GridStep(
@@ -406,8 +410,8 @@ private fun HomeOptionsSheet(
                 )
                 PortalRow(
                     icon = Icons.Default.Height,
-                    title = "Rows",
-                    subtitle = "Taller cells fit fewer, larger icons",
+                    title = stringResource(R.string.rows),
+                    subtitle = stringResource(R.string.rows_subtitle),
                     trailing = {
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             GridStep(
@@ -428,8 +432,8 @@ private fun HomeOptionsSheet(
                     // taking the grid over is a one-way door.
                     PortalRow(
                         icon = Icons.Default.Restore,
-                        title = "Reset home screen",
-                        subtitle = "Back to this profile's categories. Removes its widgets.",
+                        title = stringResource(R.string.reset_home),
+                        subtitle = stringResource(R.string.reset_home_subtitle),
                         onClick = {
                             viewModel.resetLayout()
                             onDismiss()
@@ -488,7 +492,7 @@ private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Search apps",
+                text = stringResource(R.string.search_apps),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -568,7 +572,7 @@ private fun Dock(
             ) {
                 Icon(
                     Icons.Default.Apps,
-                    contentDescription = "App drawer",
+                    contentDescription = stringResource(R.string.app_drawer),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

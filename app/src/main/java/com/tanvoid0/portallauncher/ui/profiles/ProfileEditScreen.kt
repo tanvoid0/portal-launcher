@@ -36,10 +36,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.automation.AutomationAvailability
 import com.tanvoid0.portallauncher.automation.AutomationRegistry
 import com.tanvoid0.portallauncher.automation.GreyscaleAutomation
@@ -53,6 +56,7 @@ import com.tanvoid0.portallauncher.ui.kit.PortalRow
 import com.tanvoid0.portallauncher.ui.kit.PortalScreen
 import com.tanvoid0.portallauncher.ui.kit.SectionHeader
 import com.tanvoid0.portallauncher.ui.kit.Spacing
+import com.tanvoid0.portallauncher.ui.kit.labelRes
 
 @Composable
 fun ProfileEditScreen(
@@ -82,7 +86,7 @@ fun ProfileEditScreen(
     }
 
     PortalScreen(
-        title = if (isNew) "New profile" else "Edit profile",
+        title = stringResource(if (isNew) R.string.new_profile else R.string.edit_profile),
         modifier = modifier
     ) {
         Column(
@@ -92,11 +96,18 @@ fun ProfileEditScreen(
                 .padding(bottom = Spacing.xxl),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
+            // Resolved before the chip lambdas: their `label` callbacks are not
+            // composable scopes, so stringResource cannot be called inside them.
+            val typeLabels = ProfileType.entries.associateWith { stringResource(it.labelRes) }
+            val categoryLabels = AppCategory.entries.associate {
+                it.id to stringResource(it.labelRes)
+            }
+
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::updateName,
-                label = { Text("Profile name") },
-                supportingText = { Text("Leave empty to use the type's name") },
+                label = { Text(stringResource(R.string.profile_name)) },
+                supportingText = { Text(stringResource(R.string.profile_name_hint)) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -104,21 +115,26 @@ fun ProfileEditScreen(
             )
 
             Column {
-                SectionHeader("Type", Modifier.padding(horizontal = Spacing.gutter))
+                SectionHeader(
+                    stringResource(R.string.type),
+                    Modifier.padding(horizontal = Spacing.gutter)
+                )
                 ChoiceChips(
                     options = ProfileType.entries,
                     selected = state.type,
                     onSelect = viewModel::updateType,
-                    label = { it.name },
+                    label = { typeLabels[it] ?: it.name },
                     modifier = Modifier.padding(horizontal = Spacing.gutter)
                 )
             }
 
             Column {
-                SectionHeader("Apps on home", Modifier.padding(horizontal = Spacing.gutter))
+                SectionHeader(
+                    stringResource(R.string.apps_on_home),
+                    Modifier.padding(horizontal = Spacing.gutter)
+                )
                 Text(
-                    text = "Categories this profile puts on the home screen. " +
-                        "Nothing selected shows every app.",
+                    text = stringResource(R.string.apps_on_home_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(
@@ -131,7 +147,7 @@ fun ProfileEditScreen(
                     options = AppCategory.entries.map { it.id },
                     selected = state.primaryCategories,
                     onToggle = viewModel::toggleCategory,
-                    label = { id -> AppCategory.fromId(id).name },
+                    label = { id -> categoryLabels[id] ?: id },
                     modifier = Modifier.padding(horizontal = Spacing.gutter)
                 )
             }
@@ -144,7 +160,7 @@ fun ProfileEditScreen(
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.gutter)
             ) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         }
     }
@@ -164,7 +180,7 @@ private fun AutomationsSection(
     var showNotificationPicker by remember { mutableStateOf(false) }
     var showBlockerPicker by remember { mutableStateOf(false) }
 
-    PortalGroup(title = "Automations") {
+    PortalGroup(title = stringResource(R.string.automations)) {
         AutomationRegistry.all.forEach { automation ->
             val availability = state.availability[automation.id]
                 ?: AutomationAvailability.Ready
@@ -172,11 +188,11 @@ private fun AutomationsSection(
 
             when (availability) {
                 is AutomationAvailability.Unsupported -> PortalRow(
-                    title = automation.title,
+                    title = stringResource(automation.titleRes),
                     subtitle = availability.reason
                 )
                 is AutomationAvailability.NeedsPermission -> PortalRow(
-                    title = automation.title,
+                    title = stringResource(automation.titleRes),
                     subtitle = availability.explanation,
                     trailing = {
                         TextButton(onClick = {
@@ -186,13 +202,13 @@ private fun AutomationsSection(
                                 // Nowhere to send them on this device; the row already
                                 // explains what is missing.
                             }
-                        }) { Text("Grant") }
+                        }) { Text(stringResource(R.string.grant)) }
                     }
                 )
                 is AutomationAvailability.Ready -> {
                     PortalRow(
-                        title = automation.title,
-                        subtitle = automation.summary,
+                        title = stringResource(automation.titleRes),
+                        subtitle = stringResource(automation.summaryRes),
                         trailing = {
                             Switch(
                                 checked = enabled,
@@ -221,7 +237,7 @@ private fun AutomationsSection(
 
     if (showNotificationPicker) {
         AppPickerDialog(
-            title = "Hold back notifications from",
+            title = stringResource(R.string.hold_back_from),
             viewModel = viewModel,
             selected = state.notification.blockedPackageNames.toSet(),
             onToggle = viewModel::toggleBlockedPackage,
@@ -230,7 +246,7 @@ private fun AutomationsSection(
     }
     if (showBlockerPicker) {
         AppPickerDialog(
-            title = "Apps to block",
+            title = stringResource(R.string.apps_to_block),
             viewModel = viewModel,
             selected = state.blocker.blockedPackageNames.toSet(),
             onToggle = viewModel::toggleBlockerPackage,
@@ -243,11 +259,11 @@ private fun AutomationsSection(
 private fun BlockerSettings(state: ProfileEditState, onPickApps: () -> Unit) {
     val blockedCount = state.blocker.blockedPackageNames.size
     PortalRow(
-        title = "Apps to block",
+        title = stringResource(R.string.apps_to_block),
         subtitle = if (blockedCount == 0) {
-            "None chosen yet — pick the apps this profile should pause"
+            stringResource(R.string.apps_to_block_empty)
         } else {
-            "$blockedCount chosen"
+            pluralStringResource(R.plurals.apps_chosen, blockedCount, blockedCount)
         },
         onClick = onPickApps
     )
@@ -258,7 +274,7 @@ private fun GreyscaleSettings(state: ProfileEditState, viewModel: ProfileEditVie
     val context = LocalContext.current
     GroupPanel {
         Text(
-            text = "Intensity",
+            text = stringResource(R.string.intensity),
             style = MaterialTheme.typography.titleSmall
         )
         Slider(
@@ -272,7 +288,7 @@ private fun GreyscaleSettings(state: ProfileEditState, viewModel: ProfileEditVie
                 // Developer options can be absent or policy-locked; nothing to open.
             }
         }) {
-            Text("Whole device: Developer options → Simulate colour space")
+            Text(stringResource(R.string.system_greyscale_hint))
         }
     }
 }
@@ -285,19 +301,18 @@ private fun NotificationSettings(
 ) {
     val blockedCount = state.notification.blockedPackageNames.size
     PortalRow(
-        title = "Apps to hold back",
+        title = stringResource(R.string.apps_to_hold_back),
         subtitle = if (blockedCount == 0) {
-            "None chosen yet — pick the apps this profile should quiet"
+            stringResource(R.string.apps_to_hold_back_empty)
         } else {
-            "$blockedCount chosen"
+            pluralStringResource(R.plurals.apps_chosen, blockedCount, blockedCount)
         },
         onClick = onPickApps
     )
     PortalRow(
-        title = "Dismiss instead of snoozing",
+        title = stringResource(R.string.dismiss_instead),
         // The difference is data loss; it has to be spelled out at the switch.
-        subtitle = "Snoozed notifications come back when the profile changes. " +
-            "Dismissed ones are gone for good.",
+        subtitle = stringResource(R.string.dismiss_instead_warning),
         trailing = {
             Switch(
                 checked = state.notification.cancelOnFilter,
@@ -318,7 +333,9 @@ private fun AppPickerDialog(
     val apps by viewModel.packages.collectAsState()
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
+        },
         title = { Text(title) },
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {

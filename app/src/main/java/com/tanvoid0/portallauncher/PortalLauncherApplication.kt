@@ -91,7 +91,7 @@ class PortalLauncherApplication : Application() {
         CrashRecorder.install(this)
         appScope.launch {
             if (!preferencesRepository.builtInProfilesSeeded.first()) {
-                profileRepository.seedBuiltInProfiles()
+                profileRepository.seedBuiltInProfiles { getString(it.nameRes) }
                 preferencesRepository.setBuiltInProfilesSeeded(true)
             }
             // After seeding, so the first sync sees the profiles it may need to switch to.

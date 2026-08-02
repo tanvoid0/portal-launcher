@@ -50,10 +50,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.BuiltInProfiles
 import com.tanvoid0.portallauncher.data.DefaultHomeStatus
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
@@ -167,7 +169,7 @@ private fun StepProgress(stepIndex: Int, stepCount: Int, modifier: Modifier = Mo
     )
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            text = "Step ${stepIndex + 1} of $stepCount",
+            text = stringResource(R.string.step_of, stepIndex + 1, stepCount),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -203,15 +205,15 @@ private fun StepButtons(
         // they cannot satisfy is worse than a launcher with one thing switched off.
         if (isFirst) {
             TextButton(onClick = onSkipAll, modifier = Modifier.weight(1f)) {
-                Text("Skip setup")
+                Text(stringResource(R.string.skip_setup))
             }
         } else {
             OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) {
-                Text("Back")
+                Text(stringResource(R.string.back))
             }
         }
         Button(onClick = onNext, modifier = Modifier.weight(1f)) {
-            Text(if (isLast) "Finish" else "Continue")
+            Text(stringResource(if (isLast) R.string.finish else R.string.continue_label))
         }
     }
 }
@@ -231,26 +233,25 @@ private fun StepHeader(title: String, body: String) {
 @Composable
 private fun WelcomeStep() {
     StepHeader(
-        title = "Welcome to Portal",
-        body = "Portal is a home screen that changes with what you are doing. " +
-            "Four short steps and you are set up."
+        title = stringResource(R.string.welcome_title),
+        body = stringResource(R.string.welcome_body)
     )
     Highlight(
         Icons.Default.Home,
-        "Your home screen",
-        "Portal replaces the launcher you have now. You can switch back any time."
+        stringResource(R.string.welcome_home_title),
+        stringResource(R.string.welcome_home_body)
     )
     Spacer(Modifier.height(Spacing.lg))
     Highlight(
         Icons.Default.Person,
-        "Profiles",
-        "Study, Focus, Driving and more — each one leads with the apps that fit it."
+        stringResource(R.string.welcome_profiles_title),
+        stringResource(R.string.welcome_profiles_body)
     )
     Spacer(Modifier.height(Spacing.lg))
     Highlight(
         Icons.Default.NotificationsOff,
-        "Fewer interruptions",
-        "Optional. Portal can hold back notifications the active profile does not want."
+        stringResource(R.string.welcome_quiet_title),
+        stringResource(R.string.welcome_quiet_body)
     )
 }
 
@@ -268,13 +269,12 @@ private fun HomeAppStep(isDefaultHome: Boolean, onGranted: () -> Unit) {
     }
 
     StepHeader(
-        title = "Make Portal your home screen",
-        body = "Nothing else in Portal has any effect until it is the app your home " +
-            "button opens."
+        title = stringResource(R.string.home_step_title),
+        body = stringResource(R.string.home_step_body)
     )
 
     if (isDefaultHome) {
-        GrantedCard("Portal is your home app")
+        GrantedCard(stringResource(R.string.home_granted))
         return
     }
 
@@ -291,14 +291,13 @@ private fun HomeAppStep(isDefaultHome: Boolean, onGranted: () -> Unit) {
         },
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Set as home app")
+        Text(stringResource(R.string.set_as_home))
     }
 
     if (roleRequestFailed) {
         Spacer(Modifier.height(Spacing.sm))
         Text(
-            text = "No change yet. Some devices do not show that dialog — you can " +
-                "pick Portal in system settings instead.",
+            text = stringResource(R.string.home_role_failed),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -307,7 +306,7 @@ private fun HomeAppStep(isDefaultHome: Boolean, onGranted: () -> Unit) {
             onClick = { context.startActivitySafely(DefaultHomeStatus.homeSettingsIntent()) },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Open home app settings")
+            Text(stringResource(R.string.open_home_settings))
         }
     }
 }
@@ -322,9 +321,8 @@ private fun ProfileStep(viewModel: SetupViewModel) {
     val selectedId = activeId ?: BuiltInProfiles.DEFAULT_ID
 
     StepHeader(
-        title = "Pick a starting profile",
-        body = "A profile decides which apps your home screen leads with. Everything " +
-            "else stays in the app drawer, and you can switch or edit profiles later."
+        title = stringResource(R.string.profile_step_title),
+        body = stringResource(R.string.profile_step_body)
     )
     // The kit group rounds the ends and keeps the options reading as one list, rather
     // than as a stack of unrelated cards. No gutter of its own — the setup Column
@@ -345,14 +343,11 @@ private fun ProfileStep(viewModel: SetupViewModel) {
 private fun NotificationsStep(granted: Boolean) {
     val context = LocalContext.current
     StepHeader(
-        title = "Quiet the wrong notifications",
-        body = "Optional. With notification access, Portal can hold back alerts from " +
-            "apps the active profile does not include — so a Study profile stays " +
-            "quiet. Portal never reads notification contents, and you can grant this " +
-            "later from system settings."
+        title = stringResource(R.string.notifications_step_title),
+        body = stringResource(R.string.notifications_step_body)
     )
     if (granted) {
-        GrantedCard("Notification access granted")
+        GrantedCard(stringResource(R.string.notifications_granted))
         return
     }
     Button(
@@ -361,11 +356,11 @@ private fun NotificationsStep(granted: Boolean) {
         },
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Grant notification access")
+        Text(stringResource(R.string.grant_notification_access))
     }
     Spacer(Modifier.height(Spacing.sm))
     Text(
-        text = "Skip this and every other part of Portal still works.",
+        text = stringResource(R.string.skip_is_fine),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

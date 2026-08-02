@@ -34,9 +34,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppCategory
+import com.tanvoid0.portallauncher.ui.kit.labelRes
 import com.tanvoid0.portallauncher.data.LaunchableApp
 import com.tanvoid0.portallauncher.data.searchApps
 import com.tanvoid0.portallauncher.ui.kit.EmptyState
@@ -89,12 +92,15 @@ fun AppDrawerSheet(
             value = query.value,
             onValueChange = { query.value = it },
             singleLine = true,
-            placeholder = { Text("Search apps") },
+            placeholder = { Text(stringResource(R.string.search_apps)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 if (searching) {
                     IconButton(onClick = { query.value = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.clear_search)
+                        )
                     }
                 }
             },
@@ -110,8 +116,8 @@ fun AppDrawerSheet(
 
         if (searching && results.isEmpty()) {
             EmptyState(
-                title = "No apps match",
-                body = "Nothing installed matches \"${query.value}\".",
+                title = stringResource(R.string.no_apps_match),
+                body = stringResource(R.string.no_apps_match_body, query.value),
                 icon = Icons.Default.SearchOff,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -152,8 +158,16 @@ fun AppDrawerSheet(
                         .padding(vertical = Spacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md)
                 ) {
-                    DrawerShortcut(Icons.Default.Person, "Profiles", onOpenProfiles)
-                    DrawerShortcut(Icons.Default.Settings, "Settings", onOpenSettings)
+                    DrawerShortcut(
+                        Icons.Default.Person,
+                        stringResource(R.string.nav_profiles),
+                        onOpenProfiles
+                    )
+                    DrawerShortcut(
+                        Icons.Default.Settings,
+                        stringResource(R.string.nav_settings),
+                        onOpenSettings
+                    )
                 }
             }
 
@@ -164,7 +178,7 @@ fun AppDrawerSheet(
             AppCategory.entries.forEach { category ->
                 val inCategory = grouped[category] ?: return@forEach
                 item(span = { GridItemSpan(maxLineSpan) }, key = "header-${category.id}") {
-                    SectionHeader(category.displayName())
+                    SectionHeader(stringResource(category.labelRes))
                 }
                 items(inCategory, key = { it.key }) { app ->
                     AppIconCell(
@@ -180,9 +194,4 @@ fun AppDrawerSheet(
     }
 }
 
-/** Title case for a section header; the enum's ids are lowercase storage keys. */
-fun AppCategory.displayName(): String = when (this) {
-    AppCategory.Other -> "Everything else"
-    else -> name
-}
 

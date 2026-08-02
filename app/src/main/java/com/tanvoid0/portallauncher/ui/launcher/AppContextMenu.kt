@@ -34,13 +34,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.selection.selectableGroup
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.LaunchableApp
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalRow
 import com.tanvoid0.portallauncher.ui.kit.SelectableRow
 import com.tanvoid0.portallauncher.ui.kit.Spacing
+import com.tanvoid0.portallauncher.ui.kit.labelRes
 
 /**
  * What long-pressing an app offers. One sheet used from both the home grid and the
@@ -117,7 +120,9 @@ fun AppContextMenu(
             PortalGroup {
                 PortalRow(
                     icon = Icons.Default.PushPin,
-                    title = if (onHome) "Remove from home" else "Add to home",
+                    title = stringResource(
+                        if (onHome) R.string.remove_from_home else R.string.add_to_home
+                    ),
                     onClick = {
                         viewModel.toggleOnHome(app)
                         onDismiss()
@@ -125,23 +130,26 @@ fun AppContextMenu(
                 )
                 PortalRow(
                     icon = Icons.Default.Edit,
-                    title = "Rename",
+                    title = stringResource(R.string.rename),
                     onClick = { renaming = true }
                 )
                 PortalRow(
                     icon = Icons.Default.Category,
-                    title = "Category",
+                    title = stringResource(R.string.category),
                     // Says what is in effect *and* where it came from, so the user can
                     // tell an automatic guess from their own choice before changing it.
                     subtitle = app.categoryOverride
-                        ?.let { "${it.displayName()} — set by you" }
-                        ?: "${resolvedCategory.displayName()} — chosen automatically",
+                        ?.let { stringResource(R.string.category_set_by_you, stringResource(it.labelRes)) }
+                        ?: stringResource(
+                            R.string.category_automatic,
+                            stringResource(resolvedCategory.labelRes)
+                        ),
                     onClick = { choosingCategory = true }
                 )
                 PortalRow(
                     icon = Icons.Default.VisibilityOff,
-                    title = "Hide app",
-                    subtitle = "Hidden everywhere until you unhide it in Settings",
+                    title = stringResource(R.string.hide_app),
+                    subtitle = stringResource(R.string.hide_app_subtitle),
                     onClick = {
                         viewModel.setHidden(app, true)
                         onDismiss()
@@ -149,7 +157,7 @@ fun AppContextMenu(
                 )
                 PortalRow(
                     icon = Icons.Default.Info,
-                    title = "App info",
+                    title = stringResource(R.string.app_info),
                     onClick = {
                         viewModel.openAppInfo(app)
                         onDismiss()
@@ -158,7 +166,7 @@ fun AppContextMenu(
                 if (viewModel.canUninstall(app)) {
                     PortalRow(
                         icon = Icons.Default.Delete,
-                        title = "Uninstall",
+                        title = stringResource(R.string.uninstall),
                         onClick = {
                             context.startActivity(
                                 Intent(
@@ -187,21 +195,21 @@ private fun RenameRow(
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.name)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(Spacing.sm))
         Text(
             // Clearing the field is how you undo a rename; saying so beats a third button.
-            text = "Leave empty to restore \"$originalLabel\"",
+            text = stringResource(R.string.rename_restore_hint, originalLabel),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(Spacing.lg))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Button(onClick = { onConfirm(text) }) { Text("Save") }
-            TextButton(onClick = onCancel) { Text("Cancel") }
+            Button(onClick = { onConfirm(text) }) { Text(stringResource(R.string.save)) }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
         }
     }
 }
@@ -223,14 +231,14 @@ private fun CategoryPicker(
     Column {
         PortalGroup(modifier = Modifier.selectableGroup()) {
             SelectableRow(
-                title = "Choose automatically",
-                subtitle = "Currently ${automatic.displayName()}",
+                title = stringResource(R.string.choose_automatically),
+                subtitle = stringResource(R.string.currently, stringResource(automatic.labelRes)),
                 selected = current == null,
                 onSelect = { onPick(null) }
             )
             AppCategory.entries.forEach { category ->
                 SelectableRow(
-                    title = category.displayName(),
+                    title = stringResource(category.labelRes),
                     selected = current == category,
                     onSelect = { onPick(category) }
                 )
@@ -240,7 +248,7 @@ private fun CategoryPicker(
             onClick = onCancel,
             modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.sm)
         ) {
-            Text("Cancel")
+            Text(stringResource(R.string.cancel))
         }
     }
 }

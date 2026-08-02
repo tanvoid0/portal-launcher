@@ -211,17 +211,17 @@ class BlockerService : Service() {
             val pad = (32 * dp).toInt()
             setPadding(pad, pad, pad, pad)
 
-            addView(text("Paused by Portal", 24f, bold = true))
-            addView(text("$label is blocked in this profile.", 16f).apply {
+            addView(text(getString(R.string.blocker_paused_title), 24f, bold = true))
+            addView(text(getString(R.string.blocker_paused_body, label), 16f).apply {
                 setPadding(0, (8 * dp).toInt(), 0, (24 * dp).toInt())
             })
-            addView(button("Go back") { goHome() })
-            addView(button("5 more minutes") {
+            addView(button(getString(R.string.blocker_go_back)) { goHome() })
+            addView(button(getString(R.string.blocker_five_minutes)) {
                 allowedUntil[blockedPackage] =
                     System.currentTimeMillis() + BlockerPolicy.SNOOZE_MILLIS
                 hideOverlay()
             })
-            addView(button("Unlock for this session") {
+            addView(button(getString(R.string.blocker_unlock_session)) {
                 allowedUntil[blockedPackage] = Long.MAX_VALUE
                 hideOverlay()
             })
@@ -246,14 +246,14 @@ class BlockerService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                "App blocker",
+                getString(R.string.blocker_channel),
                 NotificationManager.IMPORTANCE_LOW
             )
         )
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("App blocker is on")
-            .setContentText("Watching for apps this profile blocks.")
+            .setContentTitle(getString(R.string.blocker_notification_title))
+            .setContentText(getString(R.string.blocker_notification_body))
             .setOngoing(true)
             .build()
         // specialUse exists from API 34; the typed overload with it on an older

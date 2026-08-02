@@ -1,6 +1,7 @@
 package com.tanvoid0.portallauncher.automation
 
 import android.content.Context
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AutomationIds
 
 /**
@@ -16,20 +17,16 @@ class NotificationFilterAutomation : Automation {
 
     override val id: String = AutomationIds.NOTIFICATION_FILTER
 
-    override val title: String = "Hold back notifications"
+    override val titleRes: Int = R.string.notification_filter_title
 
-    override val summary: String =
-        "Snoozes notifications the active profile does not want. They come back when " +
-            "the profile changes."
+    override val summaryRes: Int = R.string.notification_filter_summary
 
     override fun availability(context: Context): AutomationAvailability =
         if (PortalNotificationListenerService.hasAccess(context)) {
             AutomationAvailability.Ready
         } else {
             AutomationAvailability.NeedsPermission(
-                explanation = "Portal needs notification access to hold notifications " +
-                    "back. It reads which app sent a notification, on the device — " +
-                    "notification contents are never stored or sent anywhere.",
+                explanation = context.getString(R.string.notification_filter_needs_access),
                 settingsIntent = PortalNotificationListenerService.settingsIntent()
             )
         }

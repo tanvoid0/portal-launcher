@@ -16,6 +16,7 @@ import com.tanvoid0.portallauncher.data.LaunchableApp
 import com.tanvoid0.portallauncher.data.NotificationFilterConfig
 import com.tanvoid0.portallauncher.data.ProfileEntity
 import com.tanvoid0.portallauncher.data.ProfileType
+import com.tanvoid0.portallauncher.ui.kit.labelRes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -187,7 +188,7 @@ class ProfileEditViewModel(application: Application) : AndroidViewModel(applicat
             profileRepository.insertProfile(
                 ProfileEntity(
                     id = id,
-                    name = s.name.ifBlank { s.type.name },
+                    name = s.name.ifBlank { app.getString(s.type.labelRes) },
                     iconResName = s.iconResName,
                     type = s.type.name,
                     // Visibility is how the home screen works, so it is always on. The

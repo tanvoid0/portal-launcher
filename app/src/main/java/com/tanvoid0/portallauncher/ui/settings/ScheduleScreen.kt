@@ -31,11 +31,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.PortalLauncherApplication
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.automation.ProfileScheduler
 import com.tanvoid0.portallauncher.data.ConfigCodec
 import com.tanvoid0.portallauncher.data.ProfileEntity
@@ -93,20 +95,19 @@ fun ScheduleScreen(
     var showAdd by rememberSaveable { mutableStateOf(false) }
 
     PortalScreen(
-        title = "Schedule",
-        subtitle = "Switch profiles by time of day. The last matching slot wins.",
+        title = stringResource(R.string.schedule),
+        subtitle = stringResource(R.string.schedule_subtitle),
         modifier = modifier,
         floatingAction = {
             FloatingActionButton(onClick = { showAdd = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add slot")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_slot))
             }
         }
     ) {
         if (slots.isEmpty()) {
             EmptyState(
-                title = "No schedule yet",
-                body = "Add a slot to switch to a profile at a set time — " +
-                    "Productivity at 9:00, Wellness at 22:00.",
+                title = stringResource(R.string.no_schedule_yet),
+                body = stringResource(R.string.no_schedule_body),
                 icon = Icons.Default.Schedule,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -125,10 +126,13 @@ fun ScheduleScreen(
                             title = "${formatTime(slot.startTimeMinutes)} – " +
                                 formatTime(slot.endTimeMinutes),
                             subtitle = profiles.find { it.id == slot.profileId }?.name
-                                ?: "Deleted profile — this slot does nothing",
+                                ?: stringResource(R.string.slot_deleted_profile),
                             trailing = {
                                 IconButton(onClick = { viewModel.removeSlot(slot) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove slot")
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = stringResource(R.string.remove_slot)
+                                    )
                                 }
                             }
                         )
@@ -170,27 +174,30 @@ private fun AddSlotDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New slot") },
+        title = { Text(stringResource(R.string.new_slot)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     OutlinedButton(
                         onClick = { pickTime(start) { start = it } },
                         modifier = Modifier.weight(1f)
-                    ) { Text("From ${formatTime(start)}") }
+                    ) { Text(stringResource(R.string.slot_from, formatTime(start))) }
                     OutlinedButton(
                         onClick = { pickTime(end) { end = it } },
                         modifier = Modifier.weight(1f)
-                    ) { Text("To ${formatTime(end)}") }
+                    ) { Text(stringResource(R.string.slot_to, formatTime(end))) }
                 }
                 if (end < start) {
                     Text(
-                        text = "Ends the next day",
+                        text = stringResource(R.string.ends_next_day),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Text(text = "Switch to", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = stringResource(R.string.switch_to),
+                    style = MaterialTheme.typography.titleSmall
+                )
                 profileId?.let { selected ->
                     ChoiceChips(
                         options = profiles.map { it.id },
@@ -211,9 +218,11 @@ private fun AddSlotDialog(
                 },
                 // A slot that starts and ends at the same minute covers nothing.
                 enabled = profileId != null && start != end
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.add)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
     )
 }
 

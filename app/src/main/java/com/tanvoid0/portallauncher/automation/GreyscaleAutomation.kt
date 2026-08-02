@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.Modifier
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AutomationIds
 
 /**
@@ -32,11 +33,9 @@ class GreyscaleAutomation : Automation {
 
     override val id: String = AutomationIds.GREYSCALE
 
-    override val title: String = "Greyscale"
+    override val titleRes: Int = R.string.greyscale_title
 
-    override val summary: String =
-        "Removes colour from Portal's own screens. For the whole device, Portal can " +
-            "show you where the system setting is."
+    override val summaryRes: Int = R.string.greyscale_summary
 
     /**
      * Always ready: it is a draw-time filter on our own window, so there is no

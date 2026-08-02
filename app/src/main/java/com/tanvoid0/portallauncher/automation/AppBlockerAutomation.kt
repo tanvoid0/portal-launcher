@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import androidx.core.net.toUri
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AutomationIds
 
 /**
@@ -25,11 +26,9 @@ class AppBlockerAutomation : Automation {
 
     override val id: String = AutomationIds.APP_BLOCKER
 
-    override val title: String = "Block distracting apps"
+    override val titleRes: Int = R.string.blocker_title
 
-    override val summary: String =
-        "Shows a pause screen over apps this profile blocks, with a way through " +
-            "when you mean it."
+    override val summaryRes: Int = R.string.blocker_summary
 
     /**
      * Two grants, asked for one at a time in this order: usage access to *notice* a
@@ -40,16 +39,13 @@ class AppBlockerAutomation : Automation {
     override fun availability(context: Context): AutomationAvailability {
         if (!hasUsageAccess(context)) {
             return AutomationAvailability.NeedsPermission(
-                explanation = "Portal needs usage access to notice which app comes to " +
-                    "the front. It reads app names only, on the device — nothing is " +
-                    "stored or sent anywhere.",
+                explanation = context.getString(R.string.blocker_needs_usage),
                 settingsIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
             )
         }
         if (!Settings.canDrawOverlays(context)) {
             return AutomationAvailability.NeedsPermission(
-                explanation = "Portal needs to display over other apps to put the " +
-                    "pause screen on top of a blocked app.",
+                explanation = context.getString(R.string.blocker_needs_overlay),
                 settingsIntent = Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     "package:${context.packageName}".toUri()

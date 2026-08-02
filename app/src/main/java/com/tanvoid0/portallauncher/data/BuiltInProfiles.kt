@@ -1,5 +1,7 @@
 package com.tanvoid0.portallauncher.data
 
+import com.tanvoid0.portallauncher.R
+
 /**
  * One profile the launcher ships with, before it becomes a row in the database.
  *
@@ -10,7 +12,12 @@ package com.tanvoid0.portallauncher.data
  */
 data class BuiltInProfile(
     val id: String,
-    val name: String,
+    /**
+     * Display-name resource. Resolved to a string once, at seed time, by the caller of
+     * [com.tanvoid0.portallauncher.data.ProfileRepository.seedBuiltInProfiles] — after
+     * that the name is the user's data, exactly like a rename.
+     */
+    val nameRes: Int,
     val type: ProfileType,
     /** Categories on the home screen. Empty means every app, which is the default. */
     val primaryCategories: List<AppCategory>
@@ -36,21 +43,21 @@ object BuiltInProfiles {
     const val DEFAULT_ID = "default"
 
     val all: List<BuiltInProfile> = listOf(
-        BuiltInProfile(DEFAULT_ID, "All apps", ProfileType.Custom, emptyList()),
+        BuiltInProfile(DEFAULT_ID, R.string.profile_all_apps, ProfileType.Custom, emptyList()),
 
         // Study: learning material only. The spec's "show only study apps".
-        BuiltInProfile("study", "Study", ProfileType.Study, listOf(AppCategory.Study)),
+        BuiltInProfile("study", R.string.profile_study, ProfileType.Study, listOf(AppCategory.Study)),
 
         // Social: the communication apps, prominent. Everything else stays in the
         // drawer — the spec is explicit that this profile hides nothing.
-        BuiltInProfile("social", "Social", ProfileType.Social, listOf(AppCategory.Social)),
+        BuiltInProfile("social", R.string.profile_social, ProfileType.Social, listOf(AppCategory.Social)),
 
         // Productivity: work tools *and* study, because the rules file resolves
         // Drive, Docs and Calendar to Study. Dropping Study here would leave a work
         // profile with mail and Slack and no documents.
         BuiltInProfile(
             "productivity",
-            "Productivity",
+            R.string.profile_productivity,
             ProfileType.Productivity,
             listOf(AppCategory.Productivity, AppCategory.Study)
         ),
@@ -59,7 +66,7 @@ object BuiltInProfiles {
         // both land in Social.
         BuiltInProfile(
             "gaming",
-            "Gaming",
+            R.string.profile_gaming,
             ProfileType.Gaming,
             listOf(AppCategory.Gaming, AppCategory.Social)
         ),
@@ -67,14 +74,29 @@ object BuiltInProfiles {
         // Focus: the narrowest of the three work-shaped profiles — work tools with
         // the reference material taken away too. What separates it from Study is
         // scope, not machinery.
-        BuiltInProfile("focus", "Focus", ProfileType.Focus, listOf(AppCategory.Productivity)),
+        BuiltInProfile(
+            "focus",
+            R.string.profile_focus,
+            ProfileType.Focus,
+            listOf(AppCategory.Productivity)
+        ),
 
         // Wellness: wind-down. Health and sleep apps, no social, no games.
-        BuiltInProfile("wellness", "Wellness", ProfileType.Wellness, listOf(AppCategory.Wellness)),
+        BuiltInProfile(
+            "wellness",
+            R.string.profile_wellness,
+            ProfileType.Wellness,
+            listOf(AppCategory.Wellness)
+        ),
 
         // Driving: maps and the road, deliberately almost empty. Phone and Messages
         // stay reachable regardless — the dock ignores the profile filter.
-        BuiltInProfile("driving", "Driving", ProfileType.Driving, listOf(AppCategory.Driving))
+        BuiltInProfile(
+            "driving",
+            R.string.profile_driving,
+            ProfileType.Driving,
+            listOf(AppCategory.Driving)
+        )
     )
 
     /**

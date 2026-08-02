@@ -1,4 +1,232 @@
 <resources>
     <string name="app_name">Portal Launcher</string>
     <string name="tile_label">Portal profile</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_profiles">Profiles</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Home screen -->
+    <string name="search_apps">Search apps</string>
+    <string name="clear_search">Clear search</string>
+    <string name="app_drawer">App drawer</string>
+    <string name="open_app_drawer">Open app drawer</string>
+    <string name="restore_defaults">Restore defaults</string>
+    <string name="home_empty_user_title">Home screen is empty</string>
+    <string name="home_empty_profile_title">No apps in %1$s</string>
+    <string name="home_empty_none_title">No apps to show</string>
+    <string name="home_empty_user_body">You removed every app from this profile\'s home screen. They are all still in the drawer.</string>
+    <string name="home_empty_profile_body">Nothing installed matches this profile\'s categories. Every app is still in the drawer.</string>
+    <string name="home_options_title">Home screen</string>
+    <string name="add_widget">Add widget</string>
+    <string name="grid">Grid</string>
+    <!-- Columns × rows. Symbolic on purpose: the counts are clamped to 3-7, so a
+         plural would translate a grammatical case that can never occur. -->
+    <string name="grid_size">%1$d × %2$d</string>
+    <string name="rows">Rows</string>
+    <string name="rows_subtitle">Taller cells fit fewer, larger icons</string>
+    <string name="reset_home">Reset home screen</string>
+    <string name="reset_home_subtitle">Back to this profile\'s categories. Removes its widgets.</string>
+
+    <!-- Drawer -->
+    <string name="no_apps_match">No apps match</string>
+    <string name="no_apps_match_body">Nothing installed matches "%1$s".</string>
+
+    <!-- Categories -->
+    <string name="category_study">Study</string>
+    <string name="category_social">Social</string>
+    <string name="category_productivity">Productivity</string>
+    <string name="category_gaming">Gaming</string>
+    <string name="category_wellness">Wellness</string>
+    <string name="category_driving">Driving</string>
+    <string name="category_other">Everything else</string>
+
+    <!-- Profile types -->
+    <string name="type_study">Study</string>
+    <string name="type_social">Social</string>
+    <string name="type_productivity">Productivity</string>
+    <string name="type_gaming">Gaming</string>
+    <string name="type_focus">Focus</string>
+    <string name="type_wellness">Wellness</string>
+    <string name="type_driving">Driving</string>
+    <string name="type_custom">Custom</string>
+
+    <!-- Built-in profiles (resolved once, at seed time) -->
+    <string name="profile_all_apps">All apps</string>
+    <string name="profile_study">Study</string>
+    <string name="profile_social">Social</string>
+    <string name="profile_productivity">Productivity</string>
+    <string name="profile_gaming">Gaming</string>
+    <string name="profile_focus">Focus</string>
+    <string name="profile_wellness">Wellness</string>
+    <string name="profile_driving">Driving</string>
+
+    <!-- App context menu -->
+    <string name="remove_from_home">Remove from home</string>
+    <string name="add_to_home">Add to home</string>
+    <string name="rename">Rename</string>
+    <string name="category">Category</string>
+    <string name="category_set_by_you">%1$s — set by you</string>
+    <string name="category_automatic">%1$s — chosen automatically</string>
+    <string name="hide_app">Hide app</string>
+    <string name="hide_app_subtitle">Hidden everywhere until you unhide it in Settings</string>
+    <string name="app_info">App info</string>
+    <string name="uninstall">Uninstall</string>
+    <string name="name">Name</string>
+    <string name="rename_restore_hint">Leave empty to restore "%1$s"</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="done">Done</string>
+    <string name="ok">OK</string>
+    <string name="choose_automatically">Choose automatically</string>
+    <string name="currently">Currently %1$s</string>
+
+    <!-- Widgets -->
+    <string name="widgets_unavailable">Widgets unavailable</string>
+    <string name="widgets_unavailable_body">Widgets can only be added from the home screen.</string>
+    <string name="widget_provider_subtitle">%1$s · %2$d × %3$d</string>
+    <string name="widget_menu_title">Widget · %1$d × %2$d</string>
+    <string name="wider">Wider</string>
+    <string name="narrower">Narrower</string>
+    <string name="taller">Taller</string>
+    <string name="shorter">Shorter</string>
+    <string name="remove_widget">Remove widget</string>
+
+    <!-- Profiles -->
+    <string name="profiles_subtitle">The active profile decides which apps your home screen leads with.</string>
+    <string name="add_profile">Add profile</string>
+    <string name="no_profiles_yet">No profiles yet</string>
+    <string name="no_profiles_body">Create a profile to switch between Study, Social, Productivity, Gaming, and more.</string>
+    <string name="create_profile">Create profile</string>
+    <string name="edit_profile_cd">Edit %1$s</string>
+
+    <!-- Profile editor -->
+    <string name="new_profile">New profile</string>
+    <string name="edit_profile">Edit profile</string>
+    <string name="profile_name">Profile name</string>
+    <string name="profile_name_hint">Leave empty to use the type\'s name</string>
+    <string name="type">Type</string>
+    <string name="apps_on_home">Apps on home</string>
+    <string name="apps_on_home_hint">Categories this profile puts on the home screen. Nothing selected shows every app.</string>
+    <string name="automations">Automations</string>
+    <string name="grant">Grant</string>
+    <string name="intensity">Intensity</string>
+    <string name="system_greyscale_hint">Whole device: Developer options → Simulate colour space</string>
+    <string name="apps_to_hold_back">Apps to hold back</string>
+    <string name="apps_to_hold_back_empty">None chosen yet — pick the apps this profile should quiet</string>
+    <string name="apps_to_block">Apps to block</string>
+    <string name="apps_to_block_empty">None chosen yet — pick the apps this profile should pause</string>
+    <plurals name="apps_chosen">
+        <item quantity="one">%d chosen</item>
+        <item quantity="other">%d chosen</item>
+    </plurals>
+    <string name="dismiss_instead">Dismiss instead of snoozing</string>
+    <string name="dismiss_instead_warning">Snoozed notifications come back when the profile changes. Dismissed ones are gone for good.</string>
+    <string name="hold_back_from">Hold back notifications from</string>
+
+    <!-- Automations -->
+    <string name="greyscale_title">Greyscale</string>
+    <string name="greyscale_summary">Removes colour from Portal\'s own screens. For the whole device, Portal can show you where the system setting is.</string>
+    <string name="notification_filter_title">Hold back notifications</string>
+    <string name="notification_filter_summary">Snoozes notifications the active profile does not want. They come back when the profile changes.</string>
+    <string name="notification_filter_needs_access">Portal needs notification access to hold notifications back. It reads which app sent a notification, on the device — notification contents are never stored or sent anywhere.</string>
+    <string name="blocker_title">Block distracting apps</string>
+    <string name="blocker_summary">Shows a pause screen over apps this profile blocks, with a way through when you mean it.</string>
+    <string name="blocker_needs_usage">Portal needs usage access to notice which app comes to the front. It reads app names only, on the device — nothing is stored or sent anywhere.</string>
+    <string name="blocker_needs_overlay">Portal needs to display over other apps to put the pause screen on top of a blocked app.</string>
+
+    <!-- Blocker overlay and notification -->
+    <string name="blocker_paused_title">Paused by Portal</string>
+    <string name="blocker_paused_body">%1$s is blocked in this profile.</string>
+    <string name="blocker_go_back">Go back</string>
+    <string name="blocker_five_minutes">5 more minutes</string>
+    <string name="blocker_unlock_session">Unlock for this session</string>
+    <string name="blocker_channel">App blocker</string>
+    <string name="blocker_notification_title">App blocker is on</string>
+    <string name="blocker_notification_body">Watching for apps this profile blocks.</string>
+
+    <!-- Schedule -->
+    <string name="schedule">Schedule</string>
+    <string name="schedule_subtitle">Switch profiles by time of day. The last matching slot wins.</string>
+    <string name="add_slot">Add slot</string>
+    <string name="no_schedule_yet">No schedule yet</string>
+    <string name="no_schedule_body">Add a slot to switch to a profile at a set time — Productivity at 9:00, Wellness at 22:00.</string>
+    <string name="slot_deleted_profile">Deleted profile — this slot does nothing</string>
+    <string name="remove_slot">Remove slot</string>
+    <string name="new_slot">New slot</string>
+    <string name="slot_from">From %1$s</string>
+    <string name="slot_to">To %1$s</string>
+    <string name="ends_next_day">Ends the next day</string>
+    <string name="switch_to">Switch to</string>
+    <string name="add">Add</string>
+
+    <!-- Settings -->
+    <string name="settings_apps">Apps</string>
+    <string name="app_categories">App categories</string>
+    <string name="app_categories_subtitle">Long-press any app and choose Category to move it</string>
+    <string name="hidden_apps">Hidden apps</string>
+    <string name="hidden_apps_row_subtitle">Bring back apps you hid from the home screen and drawer</string>
+    <string name="ai_sort_title">Sort unknown apps with on-device AI</string>
+    <string name="ai_working">Sorting apps…</string>
+    <string name="ai_unavailable">Not supported on this device. Categories use the built-in rules.</string>
+    <string name="ai_downloading">Downloading the on-device model…</string>
+    <string name="ai_needs_download">Needs a one-time model download.</string>
+    <string name="ai_downloadable">Available after a one-time model download.</string>
+    <string name="ai_on">On. Runs on-device; apps and categories never leave the phone.</string>
+    <string name="ai_off">Off. Apps the built-in rules can\'t place stay in Other.</string>
+    <string name="settings_portal">Portal</string>
+    <string name="back_up">Back up</string>
+    <string name="back_up_subtitle">Save profiles, layouts and app overrides to a file</string>
+    <string name="restore">Restore</string>
+    <string name="restore_subtitle">Replaces your current profiles with a backup file</string>
+    <string name="schedule_row_subtitle">Switch profiles by time of day</string>
+
+    <!-- Backup messages -->
+    <string name="backup_saved">Backup saved.</string>
+    <string name="backup_failed">Backup failed: %1$s</string>
+    <string name="backup_unknown_error">unknown error</string>
+    <string name="backup_cannot_write">could not open the chosen file for writing</string>
+    <string name="restore_failed">Restore failed: %1$s</string>
+    <string name="restore_cannot_read">could not read the file</string>
+    <string name="restore_not_portal">That does not look like a Portal backup.</string>
+    <plurals name="restore_success">
+        <item quantity="one">Restored %d profile.</item>
+        <item quantity="other">Restored %d profiles.</item>
+    </plurals>
+    <string name="restore_too_new">That backup was made by a newer version of Portal (format %1$d, this build reads %2$d).</string>
+
+    <!-- Hidden apps -->
+    <string name="hidden_apps_subtitle">Hidden apps stay installed and searchable from the system, they just do not appear in Portal.</string>
+    <string name="nothing_hidden">Nothing hidden</string>
+    <string name="nothing_hidden_body">Long-press an app and choose Hide to keep it out of the home screen and drawer.</string>
+    <string name="unhide">Unhide</string>
+
+    <!-- Onboarding -->
+    <string name="step_of">Step %1$d of %2$d</string>
+    <string name="skip_setup">Skip setup</string>
+    <string name="back">Back</string>
+    <string name="continue_label">Continue</string>
+    <string name="finish">Finish</string>
+    <string name="welcome_title">Welcome to Portal</string>
+    <string name="welcome_body">Portal is a home screen that changes with what you are doing. Four short steps and you are set up.</string>
+    <string name="welcome_home_title">Your home screen</string>
+    <string name="welcome_home_body">Portal replaces the launcher you have now. You can switch back any time.</string>
+    <string name="welcome_profiles_title">Profiles</string>
+    <string name="welcome_profiles_body">Study, Focus, Driving and more — each one leads with the apps that fit it.</string>
+    <string name="welcome_quiet_title">Fewer interruptions</string>
+    <string name="welcome_quiet_body">Optional. Portal can hold back notifications the active profile does not want.</string>
+    <string name="home_step_title">Make Portal your home screen</string>
+    <string name="home_step_body">Nothing else in Portal has any effect until it is the app your home button opens.</string>
+    <string name="home_granted">Portal is your home app</string>
+    <string name="set_as_home">Set as home app</string>
+    <string name="home_role_failed">No change yet. Some devices do not show that dialog — you can pick Portal in system settings instead.</string>
+    <string name="open_home_settings">Open home app settings</string>
+    <string name="profile_step_title">Pick a starting profile</string>
+    <string name="profile_step_body">A profile decides which apps your home screen leads with. Everything else stays in the app drawer, and you can switch or edit profiles later.</string>
+    <string name="notifications_step_title">Quiet the wrong notifications</string>
+    <string name="notifications_step_body">Optional. With notification access, Portal can hold back alerts from apps the active profile does not include — so a Study profile stays quiet. Portal never reads notification contents, and you can grant this later from system settings.</string>
+    <string name="notifications_granted">Notification access granted</string>
+    <string name="grant_notification_access">Grant notification access</string>
+    <string name="skip_is_fine">Skip this and every other part of Portal still works.</string>
 </resources>

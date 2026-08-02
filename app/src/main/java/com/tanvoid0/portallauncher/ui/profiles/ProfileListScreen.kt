@@ -22,9 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.ui.kit.EmptyState
+import com.tanvoid0.portallauncher.ui.kit.profileTypeLabelRes
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalScreen
 import com.tanvoid0.portallauncher.ui.kit.SelectableRow
@@ -40,24 +43,26 @@ fun ProfileListScreen(
     val activeId by viewModel.activeProfileId.collectAsState()
 
     PortalScreen(
-        title = "Profiles",
-        subtitle = "The active profile decides which apps your home screen leads with.",
+        title = stringResource(R.string.nav_profiles),
+        subtitle = stringResource(R.string.profiles_subtitle),
         modifier = modifier,
         floatingAction = if (profiles.isEmpty()) {
             null
         } else {
             {
                 FloatingActionButton(onClick = { onNavigateToEdit("new") }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add profile")
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = stringResource(R.string.add_profile)
+                    )
                 }
             }
         }
     ) {
         if (profiles.isEmpty()) {
             EmptyState(
-                title = "No profiles yet",
-                body = "Create a profile to switch between Study, Social, Productivity, " +
-                    "Gaming, and more.",
+                title = stringResource(R.string.no_profiles_yet),
+                body = stringResource(R.string.no_profiles_body),
                 icon = Icons.Default.Person,
                 modifier = Modifier
                     .weight(1f)
@@ -66,7 +71,7 @@ fun ProfileListScreen(
                     Button(onClick = { onNavigateToEdit("new") }) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(Modifier.width(Spacing.sm))
-                        Text("Create profile")
+                        Text(stringResource(R.string.create_profile))
                     }
                 }
             )
@@ -88,14 +93,20 @@ fun ProfileListScreen(
                             // saying which was which.
                             SelectableRow(
                                 title = profile.name,
-                                subtitle = profile.type,
+                                // The stored type is an enum name; show it localized.
+                                // A backup can hold anything, so fall back to the raw text.
+                                subtitle = profileTypeLabelRes(profile.type)
+                                    ?.let { stringResource(it) } ?: profile.type,
                                 selected = profile.id == activeId,
                                 onSelect = { viewModel.setActiveProfile(profile.id) },
                                 trailing = {
                                     IconButton(onClick = { onNavigateToEdit(profile.id) }) {
                                         Icon(
                                             Icons.Default.Edit,
-                                            contentDescription = "Edit ${profile.name}"
+                                            contentDescription = stringResource(
+                                                R.string.edit_profile_cd,
+                                                profile.name
+                                            )
                                         )
                                     }
                                 }

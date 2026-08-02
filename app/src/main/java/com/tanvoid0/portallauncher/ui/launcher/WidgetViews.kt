@@ -36,10 +36,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
 import com.tanvoid0.portallauncher.PortalLauncherApplication
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
 import com.tanvoid0.portallauncher.data.slot
@@ -151,7 +153,7 @@ fun WidgetPickerContent(
             .windowInsetsPadding(WindowInsets.navigationBars)
     ) {
         Text(
-            text = "Add widget",
+            text = stringResource(R.string.add_widget),
             style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md)
         )
@@ -159,8 +161,8 @@ fun WidgetPickerContent(
             // No Activity to run the bind and configuration screens on. Offering the
             // list anyway would give the user a tap that silently does nothing.
             EmptyState(
-                title = "Widgets unavailable",
-                body = "Widgets can only be added from the home screen.",
+                title = stringResource(R.string.widgets_unavailable),
+                body = stringResource(R.string.widgets_unavailable_body),
                 icon = Icons.Default.Widgets,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -183,7 +185,12 @@ fun WidgetPickerContent(
                 )
                 PortalRow(
                     title = choice.label,
-                    subtitle = "${choice.appLabel} · $spanX × $spanY",
+                    subtitle = stringResource(
+                        R.string.widget_provider_subtitle,
+                        choice.appLabel,
+                        spanX,
+                        spanY
+                    ),
                     trailing = { WidgetPreview(choice.info) },
                     onClick = {
                         scope.launch {
@@ -260,7 +267,7 @@ fun WidgetContextMenu(
                 .padding(bottom = Spacing.lg)
         ) {
             Text(
-                text = "Widget · ${cell.spanX} × ${cell.spanY}",
+                text = stringResource(R.string.widget_menu_title, cell.spanX, cell.spanY),
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md)
             )
@@ -268,31 +275,31 @@ fun WidgetContextMenu(
             PortalGroup {
                 PortalRow(
                     icon = Icons.Default.Widgets,
-                    title = "Wider",
+                    title = stringResource(R.string.wider),
                     onClick = { viewModel.resizeWidget(slot, cell.spanX + 1, cell.spanY) }
                 )
                 PortalRow(
                     icon = Icons.Default.Widgets,
-                    title = "Narrower",
+                    title = stringResource(R.string.narrower),
                     onClick = {
                         if (cell.spanX > 1) viewModel.resizeWidget(slot, cell.spanX - 1, cell.spanY)
                     }
                 )
                 PortalRow(
                     icon = Icons.Default.Height,
-                    title = "Taller",
+                    title = stringResource(R.string.taller),
                     onClick = { viewModel.resizeWidget(slot, cell.spanX, cell.spanY + 1) }
                 )
                 PortalRow(
                     icon = Icons.Default.Height,
-                    title = "Shorter",
+                    title = stringResource(R.string.shorter),
                     onClick = {
                         if (cell.spanY > 1) viewModel.resizeWidget(slot, cell.spanX, cell.spanY - 1)
                     }
                 )
                 PortalRow(
                     icon = Icons.Default.Delete,
-                    title = "Remove widget",
+                    title = stringResource(R.string.remove_widget),
                     onClick = {
                         viewModel.removeHomeCell(slot)
                         onDismiss()

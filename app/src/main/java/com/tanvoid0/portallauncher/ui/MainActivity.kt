@@ -19,11 +19,13 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tanvoid0.portallauncher.PortalLauncherApplication
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.automation.greyscale
 import com.tanvoid0.portallauncher.data.AutomationIds
 import com.tanvoid0.portallauncher.data.ConfigCodec
@@ -126,13 +128,25 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val navItems = remember {
-                        listOf(
-                            NavItem(Routes.LAUNCHER_HOME, "Home", Icons.Default.Home),
-                            NavItem(Routes.PROFILE_LIST, "Profiles", Icons.Default.Person),
-                            NavItem(Routes.SETTINGS, "Settings", Icons.Default.Settings)
+                    // Not remembered: stringResource must run in composition, and three
+                    // NavItems are cheaper than the cache that would hold them.
+                    val navItems = listOf(
+                        NavItem(
+                            Routes.LAUNCHER_HOME,
+                            stringResource(R.string.nav_home),
+                            Icons.Default.Home
+                        ),
+                        NavItem(
+                            Routes.PROFILE_LIST,
+                            stringResource(R.string.nav_profiles),
+                            Icons.Default.Person
+                        ),
+                        NavItem(
+                            Routes.SETTINGS,
+                            stringResource(R.string.nav_settings),
+                            Icons.Default.Settings
                         )
-                    }
+                    )
 
                     val startDestination =
                         if (isSetupComplete) Routes.LAUNCHER_HOME else Routes.ONBOARDING

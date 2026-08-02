@@ -32,8 +32,12 @@ class ProfileRepository(
      * existed already has a "default" row, and overwriting it would throw away
      * whatever the user had done to it. The caller is responsible for running this
      * once — re-running it would resurrect profiles the user deleted.
+     *
+     * [resolveName] turns a built-in's name resource into text — the caller has the
+     * Context, this repository does not. Resolved exactly once, here: after seeding,
+     * a profile's name is the user's data, the same as a rename.
      */
-    suspend fun seedBuiltInProfiles() {
+    suspend fun seedBuiltInProfiles(resolveName: (BuiltInProfile) -> String) {
         val existing = profileDao.getAllProfiles().first().mapTo(mutableSetOf()) { it.id }
         // Index into `all`, not into the filtered remainder: the sort order has to
         // match the declared order even when some of the list is already present.
@@ -42,7 +46,7 @@ class ProfileRepository(
             profileDao.insert(
                 ProfileEntity(
                     id = builtIn.id,
-                    name = builtIn.name,
+                    name = resolveName(builtIn),
                     iconResName = builtIn.id,
                     type = builtIn.type.name,
                     enabledAutomationIds = BuiltInProfiles.enabledAutomationIds,

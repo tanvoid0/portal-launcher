@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tanvoid0.portallauncher.PortalLauncherApplication
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.ai.AiStatus
 import com.tanvoid0.portallauncher.data.AiCategoryEntity
 import com.tanvoid0.portallauncher.data.AppCategorizer
@@ -90,14 +91,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 withContext(Dispatchers.IO) {
                     app.contentResolver.openOutputStream(uri)?.use { out ->
                         out.write(text.toByteArray())
-                    } ?: error("could not open the chosen file for writing")
+                    } ?: error(app.getString(R.string.backup_cannot_write))
                 }
             }
             _backupMessage.value = result.fold(
-                onSuccess = { "Backup saved." },
+                onSuccess = { app.getString(R.string.backup_saved) },
                 // The reason, not just "failed": a picker can hand back a read-only
                 // location or a URI whose permission has already lapsed.
-                onFailure = { "Backup failed: ${it.message ?: "unknown error"}" }
+                onFailure = {
+                    app.getString(
+                        R.string.backup_failed,
+                        it.message ?: app.getString(R.string.backup_unknown_error)
+                    )
+                }
             )
         }
     }
@@ -118,23 +124,30 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     } ?: error("could not open the chosen file")
                 }
             }.getOrElse {
-                _backupMessage.value = "Restore failed: ${it.message ?: "could not read the file"}"
+                _backupMessage.value = app.getString(
+                    R.string.restore_failed,
+                    it.message ?: app.getString(R.string.restore_cannot_read)
+                )
                 return@launch
             }
 
             val backup = BackupCodec.decode(text).getOrElse {
-                _backupMessage.value = "That does not look like a Portal backup."
+                _backupMessage.value = app.getString(R.string.restore_not_portal)
                 return@launch
             }
 
             _backupMessage.value = when (val result = app.backupRepository.restore(backup)) {
-                is RestoreResult.Success ->
-                    "Restored ${result.profileCount} profiles."
-                is RestoreResult.TooNew ->
-                    "That backup was made by a newer version of Portal " +
-                        "(format ${result.fileVersion}, this build reads ${result.supported})."
-                RestoreResult.NotAPortalBackup ->
-                    "That does not look like a Portal backup."
+                is RestoreResult.Success -> app.resources.getQuantityString(
+                    R.plurals.restore_success,
+                    result.profileCount,
+                    result.profileCount
+                )
+                is RestoreResult.TooNew -> app.getString(
+                    R.string.restore_too_new,
+                    result.fileVersion,
+                    result.supported
+                )
+                RestoreResult.NotAPortalBackup -> app.getString(R.string.restore_not_portal)
             }
         }
     }

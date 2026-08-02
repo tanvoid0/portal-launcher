@@ -22,8 +22,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.ai.AiStatus
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalRow
@@ -55,13 +57,15 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = viewModel::clearBackupMessage,
             confirmButton = {
-                TextButton(onClick = viewModel::clearBackupMessage) { Text("OK") }
+                TextButton(onClick = viewModel::clearBackupMessage) {
+                    Text(stringResource(R.string.ok))
+                }
             },
             text = { Text(message) }
         )
     }
 
-    PortalScreen(title = "Settings", modifier = modifier) {
+    PortalScreen(title = stringResource(R.string.nav_settings), modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -69,25 +73,25 @@ fun SettingsScreen(
                 .padding(bottom = Spacing.xxl),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            PortalGroup(title = "Apps") {
+            PortalGroup(title = stringResource(R.string.settings_apps)) {
                 // No onClick, so it exposes no click action to a screen reader either.
                 // Changing a category lives on the app itself rather than behind a
                 // settings screen listing every app twice; this row is here so the
                 // feature is findable, not so it does something.
                 PortalRow(
-                    title = "App categories",
-                    subtitle = "Long-press any app and choose Category to move it",
+                    title = stringResource(R.string.app_categories),
+                    subtitle = stringResource(R.string.app_categories_subtitle),
                     icon = Icons.Default.Category
                 )
                 PortalRow(
-                    title = "Hidden apps",
-                    subtitle = "Bring back apps you hid from the home screen and drawer",
+                    title = stringResource(R.string.hidden_apps),
+                    subtitle = stringResource(R.string.hidden_apps_row_subtitle),
                     icon = Icons.Default.VisibilityOff,
                     onClick = onOpenHiddenApps
                 )
                 PortalRow(
-                    title = "Sort unknown apps with on-device AI",
-                    subtitle = aiSummary(aiStatus, aiEnabled, working),
+                    title = stringResource(R.string.ai_sort_title),
+                    subtitle = stringResource(aiSummaryRes(aiStatus, aiEnabled, working)),
                     icon = Icons.Default.AutoAwesome,
                     trailing = {
                         Switch(
@@ -102,23 +106,23 @@ fun SettingsScreen(
                     }
                 )
             }
-            PortalGroup(title = "Portal") {
+            PortalGroup(title = stringResource(R.string.settings_portal)) {
                 PortalRow(
-                    title = "Back up",
-                    subtitle = "Save profiles, layouts and app overrides to a file",
+                    title = stringResource(R.string.back_up),
+                    subtitle = stringResource(R.string.back_up_subtitle),
                     icon = Icons.Default.Backup,
                     onClick = { exportLauncher.launch("portal-launcher-backup.json") }
                 )
                 PortalRow(
-                    title = "Restore",
+                    title = stringResource(R.string.restore),
                     // Says what it does before they pick the file, not after.
-                    subtitle = "Replaces your current profiles with a backup file",
+                    subtitle = stringResource(R.string.restore_subtitle),
                     icon = Icons.Default.Restore,
                     onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
                 )
                 PortalRow(
-                    title = "Schedule",
-                    subtitle = "Switch profiles by time of day",
+                    title = stringResource(R.string.schedule),
+                    subtitle = stringResource(R.string.schedule_row_subtitle),
                     icon = Icons.Default.Schedule,
                     onClick = onOpenSchedule
                 )
@@ -127,13 +131,12 @@ fun SettingsScreen(
     }
 }
 
-private fun aiSummary(status: AiStatus, enabled: Boolean, working: Boolean): String = when {
-    working -> "Sorting apps…"
-    status == AiStatus.Unavailable ->
-        "Not supported on this device. Categories use the built-in rules."
-    status == AiStatus.Downloading -> "Downloading the on-device model…"
-    status == AiStatus.Downloadable && enabled -> "Needs a one-time model download."
-    status == AiStatus.Downloadable -> "Available after a one-time model download."
-    enabled -> "On. Runs on-device; apps and categories never leave the phone."
-    else -> "Off. Apps the built-in rules can't place stay in Other."
+private fun aiSummaryRes(status: AiStatus, enabled: Boolean, working: Boolean): Int = when {
+    working -> R.string.ai_working
+    status == AiStatus.Unavailable -> R.string.ai_unavailable
+    status == AiStatus.Downloading -> R.string.ai_downloading
+    status == AiStatus.Downloadable && enabled -> R.string.ai_needs_download
+    status == AiStatus.Downloadable -> R.string.ai_downloadable
+    enabled -> R.string.ai_on
+    else -> R.string.ai_off
 }

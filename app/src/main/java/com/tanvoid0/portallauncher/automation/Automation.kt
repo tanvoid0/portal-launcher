@@ -46,11 +46,11 @@ interface Automation {
     /** Stable id, stored in `automation_config.automationId`. */
     val id: String
 
-    /** Short human name, for the profile editor. */
-    val title: String
+    /** Short human name, for the profile editor. A resource so it localizes. */
+    val titleRes: Int
 
     /** One line on what enabling it does, for the profile editor. */
-    val summary: String
+    val summaryRes: Int
 
     /** Whether this can run, and if not, what to tell the user. */
     fun availability(context: Context): AutomationAvailability

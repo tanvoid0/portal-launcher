@@ -14,11 +14,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.PortalLauncherApplication
+import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppOverrideEntity
 import com.tanvoid0.portallauncher.data.LaunchableApp
 import com.tanvoid0.portallauncher.ui.kit.EmptyState
@@ -47,16 +49,14 @@ fun HiddenAppsScreen(
     val hidden by viewModel.hiddenApps.collectAsStateWithLifecycle()
 
     PortalScreen(
-        title = "Hidden apps",
-        subtitle = "Hidden apps stay installed and searchable from the system, " +
-            "they just do not appear in Portal.",
+        title = stringResource(R.string.hidden_apps),
+        subtitle = stringResource(R.string.hidden_apps_subtitle),
         modifier = modifier
     ) {
         if (hidden.isEmpty()) {
             EmptyState(
-                title = "Nothing hidden",
-                body = "Long-press an app and choose Hide to keep it out of the " +
-                    "home screen and drawer.",
+                title = stringResource(R.string.nothing_hidden),
+                body = stringResource(R.string.nothing_hidden_body),
                 icon = Icons.Default.VisibilityOff,
                 modifier = Modifier
                     .weight(1f)
@@ -78,7 +78,7 @@ fun HiddenAppsScreen(
                             subtitle = app.packageName,
                             trailing = {
                                 TextButton(onClick = { viewModel.unhide(app) }) {
-                                    Text("Unhide")
+                                    Text(stringResource(R.string.unhide))
                                 }
                             }
                         )

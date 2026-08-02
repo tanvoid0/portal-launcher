@@ -915,3 +915,35 @@ permissions it flagged as declared-but-unused are declared *and used*.
 The full grant flow and the overlay need a phone: usage access and the overlay
 grant are real system settings screens, and emulator `queryEvents` timing is
 not the field. Same device session as §12's widget picker check.
+
+---
+
+## 15. Localization (D17 closed)
+
+Done 2026-08-02. Every user-visible string now lives in `strings.xml` — ~150
+strings across every screen, sheet, dialog, the blocker overlay, the FGS
+notification and the backup messages. `supportsRtl="true"` is now backed by
+something translatable; layouts were already start/end-based Compose, so RTL
+needs only the manual `debug.force_rtl 1` pass on a device.
+
+Design decisions that were not mechanical:
+
+- **`Automation.title/summary` became `titleRes`/`summaryRes`.** The interface
+  had no Context to resolve against; availability explanations stay `String`
+  because `availability(context)` already has one.
+- **Built-in profile names resolve exactly once, at seed time.**
+  `BuiltInProfile.nameRes` + `seedBuiltInProfiles(resolveName)` — after
+  seeding, the name is the user's data, the same as a rename. Changing the
+  device language does not rename existing profiles, which is the same promise
+  every launcher makes about its stock items.
+- **Category and profile-type display names moved to `ui/kit/Labels.kt`** —
+  the enum names are storage keys and must never change; what the user reads
+  now localizes independently. A stored type that matches no enum (hand-edited
+  backup) falls back to the raw text instead of crashing.
+- **Plurals** where a count is user-facing (`%d chosen`, `Restored %d
+  profiles`); the grid subtitle is symbolic (`4 × 5`) because the counts are
+  clamped to 3–7 and a plural would translate a case that cannot occur —
+  lint's `PluralsCandidate` agreed about the rest.
+
+Still manual: an actual translation (`values-xx/`), and the on-device
+`debug.force_rtl` sweep.
