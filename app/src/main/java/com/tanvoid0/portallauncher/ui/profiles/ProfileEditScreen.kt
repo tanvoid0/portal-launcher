@@ -161,7 +161,8 @@ private fun AutomationsSection(
     viewModel: ProfileEditViewModel
 ) {
     val context = LocalContext.current
-    var showAppPicker by remember { mutableStateOf(false) }
+    var showNotificationPicker by remember { mutableStateOf(false) }
+    var showBlockerPicker by remember { mutableStateOf(false) }
 
     PortalGroup(title = "Automations") {
         AutomationRegistry.all.forEach { automation ->
@@ -206,7 +207,11 @@ private fun AutomationsSection(
                         AutomationIds.NOTIFICATION_FILTER -> NotificationSettings(
                             state = state,
                             viewModel = viewModel,
-                            onPickApps = { showAppPicker = true }
+                            onPickApps = { showNotificationPicker = true }
+                        )
+                        AutomationIds.APP_BLOCKER -> BlockerSettings(
+                            state = state,
+                            onPickApps = { showBlockerPicker = true }
                         )
                     }
                 }
@@ -214,13 +219,38 @@ private fun AutomationsSection(
         }
     }
 
-    if (showAppPicker) {
-        BlockedAppsDialog(
+    if (showNotificationPicker) {
+        AppPickerDialog(
+            title = "Hold back notifications from",
             viewModel = viewModel,
-            blocked = state.notification.blockedPackageNames.toSet(),
-            onDismiss = { showAppPicker = false }
+            selected = state.notification.blockedPackageNames.toSet(),
+            onToggle = viewModel::toggleBlockedPackage,
+            onDismiss = { showNotificationPicker = false }
         )
     }
+    if (showBlockerPicker) {
+        AppPickerDialog(
+            title = "Apps to block",
+            viewModel = viewModel,
+            selected = state.blocker.blockedPackageNames.toSet(),
+            onToggle = viewModel::toggleBlockerPackage,
+            onDismiss = { showBlockerPicker = false }
+        )
+    }
+}
+
+@Composable
+private fun BlockerSettings(state: ProfileEditState, onPickApps: () -> Unit) {
+    val blockedCount = state.blocker.blockedPackageNames.size
+    PortalRow(
+        title = "Apps to block",
+        subtitle = if (blockedCount == 0) {
+            "None chosen yet — pick the apps this profile should pause"
+        } else {
+            "$blockedCount chosen"
+        },
+        onClick = onPickApps
+    )
 }
 
 @Composable
@@ -278,16 +308,18 @@ private fun NotificationSettings(
 }
 
 @Composable
-private fun BlockedAppsDialog(
+private fun AppPickerDialog(
+    title: String,
     viewModel: ProfileEditViewModel,
-    blocked: Set<String>,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val apps by viewModel.packages.collectAsState()
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-        title = { Text("Hold back notifications from") },
+        title = { Text(title) },
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                 items(apps, key = { it.packageName }) { app ->
@@ -295,18 +327,16 @@ private fun BlockedAppsDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .toggleable(
-                                value = app.packageName in blocked,
+                                value = app.packageName in selected,
                                 role = Role.Checkbox,
-                                onValueChange = {
-                                    viewModel.toggleBlockedPackage(app.packageName)
-                                }
+                                onValueChange = { onToggle(app.packageName) }
                             )
                             .padding(vertical = Spacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
                     ) {
                         // State comes from the row's toggleable; the checkbox only shows it.
-                        Checkbox(checked = app.packageName in blocked, onCheckedChange = null)
+                        Checkbox(checked = app.packageName in selected, onCheckedChange = null)
                         Text(text = app.label, style = MaterialTheme.typography.bodyLarge)
                     }
                 }

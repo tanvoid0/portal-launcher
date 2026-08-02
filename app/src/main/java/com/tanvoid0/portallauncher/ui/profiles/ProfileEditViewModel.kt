@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.automation.AutomationAvailability
 import com.tanvoid0.portallauncher.automation.AutomationRegistry
+import com.tanvoid0.portallauncher.data.AppBlockerConfig
 import com.tanvoid0.portallauncher.data.AppVisibilityConfig
 import com.tanvoid0.portallauncher.data.AutomationConfigEntity
 import com.tanvoid0.portallauncher.data.AutomationIds
@@ -37,6 +38,7 @@ data class ProfileEditState(
     val enabledAutomationIds: Set<String> = emptySet(),
     val greyscale: GreyscaleConfig = GreyscaleConfig(),
     val notification: NotificationFilterConfig = NotificationFilterConfig(),
+    val blocker: AppBlockerConfig = AppBlockerConfig(),
     /** Automation id → whether it can run, refreshed when the screen resumes. */
     val availability: Map<String, AutomationAvailability> = emptyMap(),
     val loading: Boolean = true
@@ -96,6 +98,10 @@ class ProfileEditViewModel(application: Application) : AndroidViewModel(applicat
                     notification = ConfigCodec.decodeOr(
                         configs[AutomationIds.NOTIFICATION_FILTER],
                         NotificationFilterConfig()
+                    ),
+                    blocker = ConfigCodec.decodeOr(
+                        configs[AutomationIds.APP_BLOCKER],
+                        AppBlockerConfig()
                     ),
                     availability = currentAvailability(),
                     loading = false
@@ -161,6 +167,19 @@ class ProfileEditViewModel(application: Application) : AndroidViewModel(applicat
         )
     }
 
+    fun toggleBlockerPackage(packageName: String) = _state.update {
+        val blocked = it.blocker.blockedPackageNames
+        it.copy(
+            blocker = it.blocker.copy(
+                blockedPackageNames = if (packageName in blocked) {
+                    blocked - packageName
+                } else {
+                    blocked + packageName
+                }
+            )
+        )
+    }
+
     fun saveProfile(onSaved: () -> Unit) {
         viewModelScope.launch {
             val s = _state.value
@@ -188,7 +207,8 @@ class ProfileEditViewModel(application: Application) : AndroidViewModel(applicat
                 AutomationIds.GREYSCALE to ConfigCodec.encode(
                     s.greyscale.copy(enabled = AutomationIds.GREYSCALE in s.enabledAutomationIds)
                 ),
-                AutomationIds.NOTIFICATION_FILTER to ConfigCodec.encode(s.notification)
+                AutomationIds.NOTIFICATION_FILTER to ConfigCodec.encode(s.notification),
+                AutomationIds.APP_BLOCKER to ConfigCodec.encode(s.blocker)
             )
             configs.forEach { (automationId, json) ->
                 profileRepository.saveAutomationConfig(

@@ -26,11 +26,18 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!--
-      Still not declared, because nothing implements them yet and a permission with no
-      code behind it is review liability:
-        SYSTEM_ALERT_WINDOW + FOREGROUND_SERVICE_SPECIAL_USE -> app blocker overlay
-      See PRODUCTION_PLAN.md phase 6.
+      The app blocker (BlockerService). All four finally have code behind them:
+      PACKAGE_USAGE_STATS is the app-op behind usage access — granted by the user in
+      Settings, not at runtime, hence the lint ignore. SYSTEM_ALERT_WINDOW is the pause
+      overlay. The FGS pair keeps the poller alive while a blocking profile is active;
+      the specialUse subtype property on the service is the Play-required justification.
     -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".PortalLauncherApplication"
@@ -89,6 +96,21 @@
                 <action android:name="com.tanvoid0.portallauncher.action.SCHEDULE_TICK" />
             </intent-filter>
         </receiver>
+
+        <!--
+          Foreground service that watches the foreground app while a blocking profile
+          is active and covers blocked apps with a pause screen. specialUse because no
+          defined type fits "digital wellbeing app blocker"; the property below is the
+          declaration Play reviews.
+        -->
+        <service
+            android:name=".automation.BlockerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="App blocker: while a focus profile is active, polls usage events to notice when the user opens an app they chose to block, and shows a full-screen pause reminder over it. Runs only while such a profile is active." />
+        </service>
 
         <!-- NotificationListenerService for per-profile notification filtering. -->
         <service

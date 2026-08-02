@@ -875,3 +875,43 @@ re-arms the alarm in the same step, so the pending alarm can never describe a
 timetable other than the stored one. Backups carry the timetable
 (`scheduleJson`, additive so old files still read); restore drops slots naming
 profiles the file does not contain, same rule as the dangling active id.
+
+---
+
+## 14. The app blocker
+
+Done 2026-08-02. The last automation §6 listed, on the mechanism §1.2 decided:
+usage-access polling, **not** an AccessibilityService — accessibility is instant
+but is a routine Play rejection cause, and one rejected release costs more than
+a second of detection latency. D14 is now resolved the right way round: the
+permissions it flagged as declared-but-unused are declared *and used*.
+
+### Shape
+
+- `AppBlockerAutomation` — the availability gate and the engine's lever. Two
+  grants asked for one at a time (usage access to *notice* a blocked app, the
+  overlay to *do* something about it), each `NeedsPermission` carrying its own
+  settings intent, so the editor card walks the user through both.
+- `BlockerService` — FGS `specialUse` with the Play justification in the
+  manifest `<property>`. Polls `UsageStatsManager.queryEvents` once a second
+  while the screen is interactive, overlapping query windows by one poll so a
+  missed clock edge cannot leave a blocked app open. Reads the active profile's
+  config from `ActiveProfileSource` itself (same pattern as the notification
+  listener), so list edits apply without a restart; a profile switch clears all
+  reprieves. `START_STICKY`, and self-stops if a sticky restart lands on a
+  profile that no longer blocks.
+- The overlay is plain views on purpose — a ComposeView in a service window
+  needs a hand-rolled lifecycle owner, and this screen is two lines of text and
+  three buttons: **Go back** (home), **5 more minutes** (timed reprieve),
+  **Unlock for this session** (until the profile changes or the service dies).
+  Back on the overlay means "leave the blocked app".
+- `BlockerPolicy` — the block/allow decision kept pure and unit-tested,
+  including the two never-block cases: the launcher itself (an overlay over
+  home is a lockout with no surface left to undo it) and the default dialer
+  (a pause screen over an emergency call is indefensible).
+
+### Not verified on device
+
+The full grant flow and the overlay need a phone: usage access and the overlay
+grant are real system settings screens, and emulator `queryEvents` timing is
+not the field. Same device session as §12's widget picker check.
