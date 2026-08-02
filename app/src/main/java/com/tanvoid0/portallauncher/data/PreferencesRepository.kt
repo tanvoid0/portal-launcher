@@ -56,7 +56,39 @@ private val KEY_SCHEDULE_JSON = stringPreferencesKey("schedule_json")
 private val KEY_GRID_COLUMNS = intPreferencesKey("home_grid_columns")
 private val KEY_GRID_ROWS = intPreferencesKey("home_grid_rows")
 
+// How the drawer orders apps within a section. A preference rather than per-profile:
+// it is a statement about how you like to find things, not about any one profile.
+private val KEY_SORT_MODE = stringPreferencesKey("drawer_sort_mode")
+
+// Whether the drawer groups apps under category headers at all. Default true keeps
+// today's behaviour for everyone who never opens this toggle.
+private val KEY_CATEGORY_BAR_VISIBLE = booleanPreferencesKey("drawer_category_bar_visible")
+
+/** How the drawer orders apps within a section (or across all of them, ungrouped). */
+enum class DrawerSortMode {
+    ALPHABETICAL,
+    MOST_USED
+}
+
 class PreferencesRepository(private val context: Context) {
+
+    val drawerSortMode: Flow<DrawerSortMode> = context.dataStore.data.map { prefs ->
+        prefs[KEY_SORT_MODE]?.let { stored ->
+            runCatching { DrawerSortMode.valueOf(stored) }.getOrNull()
+        } ?: DrawerSortMode.ALPHABETICAL
+    }
+
+    suspend fun setDrawerSortMode(mode: DrawerSortMode) {
+        context.dataStore.edit { prefs -> prefs[KEY_SORT_MODE] = mode.name }
+    }
+
+    val categoryBarVisible: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CATEGORY_BAR_VISIBLE] ?: true
+    }
+
+    suspend fun setCategoryBarVisible(visible: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_CATEGORY_BAR_VISIBLE] = visible }
+    }
 
     /** Profiles where the home grid is the user's own list, empty or not. */
     val customLayoutProfileIds: Flow<Set<String>> = context.dataStore.data.map { prefs ->

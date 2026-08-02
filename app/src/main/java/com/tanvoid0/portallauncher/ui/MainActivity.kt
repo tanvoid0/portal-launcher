@@ -177,7 +177,8 @@ class MainActivity : ComponentActivity() {
                                 LauncherHomeScreen(
                                     widgetPlacement = widgetPlacement,
                                     onOpenProfiles = { navController.navigate(Routes.PROFILE_LIST) },
-                                    onOpenSettings = { navController.navigate(Routes.SETTINGS) }
+                                    onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                                    onOpenHiddenApps = { navController.navigate(Routes.HIDDEN_APPS) }
                                 )
                             }
                             composable(Routes.PROFILE_LIST) {

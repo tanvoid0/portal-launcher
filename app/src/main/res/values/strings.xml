@@ -175,12 +175,20 @@
     <string name="ai_downloadable">Available after a one-time model download.</string>
     <string name="ai_on">On. Runs on-device; apps and categories never leave the phone.</string>
     <string name="ai_off">Off. Apps the built-in rules can\'t place stay in Other.</string>
-    <string name="settings_portal">Portal</string>
+    <string name="settings_backup">Backup</string>
     <string name="back_up">Back up</string>
     <string name="back_up_subtitle">Save profiles, layouts and app overrides to a file</string>
     <string name="restore">Restore</string>
     <string name="restore_subtitle">Replaces your current profiles with a backup file</string>
+    <string name="settings_schedule">Schedule</string>
     <string name="schedule_row_subtitle">Switch profiles by time of day</string>
+
+    <!-- Drawer options sheet -->
+    <string name="drawer_options">Drawer options</string>
+    <string name="sort_alphabetical">A to Z</string>
+    <string name="sort_most_used">Most used</string>
+    <string name="category_bar">Category headers</string>
+    <string name="category_bar_subtitle">Group apps by category in the drawer</string>
 
     <!-- Backup messages -->
     <string name="backup_saved">Backup saved.</string>

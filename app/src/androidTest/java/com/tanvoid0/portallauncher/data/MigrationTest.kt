@@ -199,6 +199,41 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate6To7_addsUsageCounterStartingEmpty() {
+        helper.createDatabase(TEST_DB, 6).use { db ->
+            db.execSQL(
+                "INSERT INTO app_override (packageName, activityName, userSerial, hidden, customLabel) " +
+                    "VALUES ('com.example.mail', 'com.example.mail.Main', 0, 0, 'Inbox')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            7,
+            true,
+            AppDatabaseMigrations.MIGRATION_6_7
+        )
+
+        // Existing overrides must survive a migration that touches an unrelated table.
+        db.query("SELECT customLabel FROM app_override WHERE packageName = 'com.example.mail'").use { c ->
+            assertTrue("override row was lost by the migration", c.moveToFirst())
+            assertEquals("Inbox", c.getString(0))
+        }
+        // The new table starts empty rather than backfilled — there is no history to
+        // backfill it from, and zero is exactly what "never launched" means.
+        db.execSQL(
+            "INSERT INTO app_usage (packageName, activityName, userSerial, launchCount) " +
+                "VALUES ('com.example.mail', 'com.example.mail.Main', 0, 1) " +
+                "ON CONFLICT(packageName, activityName, userSerial) DO UPDATE SET launchCount = launchCount + 1"
+        )
+        db.query("SELECT launchCount FROM app_usage").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+            assertFalse("the migration invented usage rows", c.moveToNext())
+        }
+    }
+
+    @Test
     fun deletingAProfileTakesItsHomeCellsWithIt() {
         helper.createDatabase(TEST_DB, 5).use { db ->
             db.execSQL(

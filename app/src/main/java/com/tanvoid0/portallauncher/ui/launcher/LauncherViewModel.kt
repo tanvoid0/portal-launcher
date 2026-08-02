@@ -9,6 +9,7 @@ import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.AppCategorizer
 import com.tanvoid0.portallauncher.data.AppOverrideEntity
 import com.tanvoid0.portallauncher.data.AppVisibilityConfig
+import com.tanvoid0.portallauncher.data.DrawerSortMode
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
 import com.tanvoid0.portallauncher.data.HomeEntry
@@ -70,7 +71,13 @@ data class LauncherUiState(
     /** Stored cells for the active profile, so the menu knows what is already on home. */
     val cells: List<HomeCellEntity> = emptyList(),
     /** True once the user has changed anything, i.e. the grid is theirs and not a default. */
-    val hasCustomLayout: Boolean = false
+    val hasCustomLayout: Boolean = false,
+    /** How the drawer orders apps within (or across) categories. */
+    val drawerSortMode: DrawerSortMode = DrawerSortMode.ALPHABETICAL,
+    /** Whether the drawer groups apps under category headers at all. */
+    val categoryBarVisible: Boolean = true,
+    /** Launch count per app key, for [DrawerSortMode.MOST_USED]. Absent means never launched. */
+    val usageCountByKey: Map<String, Int> = emptyMap()
 )
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -83,6 +90,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val widgetHost = app.widgetHost
     private val homeCellDao = app.database.homeCellDao()
     private val appOverrideDao = app.database.appOverrideDao()
+    private val appUsageDao = app.database.appUsageDao()
 
     /**
      * Widget ids the host still holds.
@@ -132,6 +140,30 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             rows.associateBy { "${it.packageName}/${it.activityName}/${it.userSerial}" }
         }
 
+    private val usageCountByKeyFlow: Flow<Map<String, Int>> =
+        appUsageDao.observeAll().map { rows ->
+            rows.associate { "${it.packageName}/${it.activityName}/${it.userSerial}" to it.launchCount }
+        }
+
+    /**
+     * The drawer's own display preferences, folded together before joining the main
+     * [combine] below: that one is already at the five-flow ceiling the codebase has
+     * hit twice before (see [appsFlow], [layoutFlow]).
+     */
+    private val drawerPrefsFlow = combine(
+        preferencesRepository.drawerSortMode,
+        preferencesRepository.categoryBarVisible,
+        usageCountByKeyFlow
+    ) { sortMode, categoryBarVisible, usageCountByKey ->
+        DrawerPrefs(sortMode, categoryBarVisible, usageCountByKey)
+    }
+
+    private data class DrawerPrefs(
+        val sortMode: DrawerSortMode,
+        val categoryBarVisible: Boolean,
+        val usageCountByKey: Map<String, Int>
+    )
+
     /**
      * Combined in two stages because [combine] takes at most five flows. The first
      * stage is everything about the apps themselves, the second everything about the
@@ -161,7 +193,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val liveWidgetIds: Set<Int>
     )
 
-    val uiState: StateFlow<LauncherUiState> = combine(
+    private val baseUiStateFlow = combine(
         activeProfileFlow,
         profileRepository.getAllProfiles(),
         visibilityConfigFlow,
@@ -194,6 +226,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             cells = layout.cells,
             hasCustomLayout = layout.isCustomised
         )
+    }
+
+    val uiState: StateFlow<LauncherUiState> = combine(
+        baseUiStateFlow,
+        drawerPrefsFlow
+    ) { state, prefs ->
+        state.copy(
+            drawerSortMode = prefs.sortMode,
+            categoryBarVisible = prefs.categoryBarVisible,
+            usageCountByKey = prefs.usageCountByKey
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -207,7 +250,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         healLayoutForGrid()
     }
 
-    fun launch(app: LaunchableApp) = appRepository.launch(app)
+    fun launch(app: LaunchableApp) {
+        appRepository.launch(app)
+        viewModelScope.launch {
+            appUsageDao.recordLaunch(app.packageName, app.activityName, app.userSerial)
+        }
+    }
+
+    fun setDrawerSortMode(mode: DrawerSortMode) {
+        viewModelScope.launch { preferencesRepository.setDrawerSortMode(mode) }
+    }
+
+    fun setCategoryBarVisible(visible: Boolean) {
+        viewModelScope.launch { preferencesRepository.setCategoryBarVisible(visible) }
+    }
 
     fun openAppInfo(app: LaunchableApp) = appRepository.openAppInfo(app)
 

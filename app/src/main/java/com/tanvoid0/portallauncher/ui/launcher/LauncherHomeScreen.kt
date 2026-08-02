@@ -113,6 +113,7 @@ fun LauncherHomeScreen(
     widgetPlacement: WidgetPlacement? = null,
     onOpenProfiles: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenHiddenApps: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var appDrawerOpen by remember { mutableStateOf(false) }
@@ -284,6 +285,9 @@ fun LauncherHomeScreen(
                 AppDrawerSheet(
                     apps = uiState.allApps,
                     categoryByKey = uiState.categoryByKey,
+                    usageCountByKey = uiState.usageCountByKey,
+                    sortMode = uiState.drawerSortMode,
+                    categoryBarVisible = uiState.categoryBarVisible,
                     viewModel = viewModel,
                     autoFocusSearch = drawerOpenedForSearch,
                     onLaunch = { app ->
@@ -292,7 +296,8 @@ fun LauncherHomeScreen(
                     },
                     onLongPress = { menuApp = it },
                     onOpenProfiles = { appDrawerOpen = false; onOpenProfiles() },
-                    onOpenSettings = { appDrawerOpen = false; onOpenSettings() }
+                    onOpenSettings = { appDrawerOpen = false; onOpenSettings() },
+                    onOpenHiddenApps = { appDrawerOpen = false; onOpenHiddenApps() }
                 )
             }
         }

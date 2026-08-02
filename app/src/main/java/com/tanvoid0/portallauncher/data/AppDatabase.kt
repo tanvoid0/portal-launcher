@@ -20,9 +20,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AutomationConfigEntity::class,
         AiCategoryEntity::class,
         HomeCellEntity::class,
-        AppOverrideEntity::class
+        AppOverrideEntity::class,
+        AppUsageEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -33,6 +34,7 @@ abstract class AppDatabase : androidx.room.RoomDatabase() {
     abstract fun aiCategoryDao(): AiCategoryDao
     abstract fun homeCellDao(): HomeCellDao
     abstract fun appOverrideDao(): AppOverrideDao
+    abstract fun appUsageDao(): AppUsageDao
 
     companion object {
         private const val DB_NAME = "portal_launcher.db"
@@ -178,12 +180,33 @@ object AppDatabaseMigrations {
         }
     }
 
+    /**
+     * Adds the launch counter behind the drawer's "most used" sort.
+     *
+     * A new table rather than a column on [AppOverrideEntity]: that table is sparse by
+     * design — a row exists only for an app the user changed something about — and a
+     * launch count would need a row for nearly every installed app, turning it dense.
+     */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `app_usage` (" +
+                    "`packageName` TEXT NOT NULL, " +
+                    "`activityName` TEXT NOT NULL, " +
+                    "`userSerial` INTEGER NOT NULL, " +
+                    "`launchCount` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`packageName`, `activityName`, `userSerial`))"
+            )
+        }
+    }
+
     val all: Array<Migration>
         get() = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
             MIGRATION_4_5,
-            MIGRATION_5_6
+            MIGRATION_5_6,
+            MIGRATION_6_7
         )
 }

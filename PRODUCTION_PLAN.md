@@ -948,6 +948,38 @@ Design decisions that were not mechanical:
 Still manual: an actual translation (`values-xx/`), and the on-device
 `debug.force_rtl` sweep.
 
+## 16. Drawer options and a Settings hub, pulled from Smart Launcher
+
+Done 2026-08-02, prompted by a look at Smart Launcher 6 for styling and functionality
+ideas. Most of its substance already existed here (categorised drawer, hidden apps,
+backup, schedule, widgets); this closes two of the three gaps that survey found. The
+third — a Gestures screen — was scoped out: only swipe-up exists today, and a real
+double-tap-to-lock option means building the `AccessibilityService` §1.2 already
+deferred to the app blocker specifically to dodge a Play rejection risk. Revisit
+together with that.
+
+**Drawer overflow menu.** A kebab button next to the search field (schema v7 adds
+`app_usage`, a launch counter bumped in `LauncherViewModel.launch` — one row per app,
+started empty, no backfill possible) opens a sheet offering: sort A-Z vs. most-used
+(alphabetical is a no-op — `AppRepository` already hands back apps sorted by label, so
+only "most used" does any work, `sortedByDescending` being stable keeps ties in that
+same order), a category-headers on/off switch, and a link to Hidden apps that used to
+live only in Settings. `app_usage` is its own table rather than a column on
+`AppOverrideEntity`: that one is sparse by design — a row only for an app the user
+changed something about — and a launch count needs a row for nearly every installed
+app.
+
+**Settings hub.** The single "Portal" group was two unrelated concerns wearing one
+label. Split into "Backup" (export/restore) and "Schedule" (unchanged content, its own
+heading) — cosmetic, but it is what "hub" meant here: nothing to reorganise beyond the
+six rows that already existed, since Wallpaper/Gestures/Pages in the reference app are
+either out of scope or already reachable elsewhere (grid size stays on the home
+long-press sheet — duplicating it into Settings added a control, not a fix).
+
+**Not verified on device.** `migrate6To7_addsUsageCounterStartingEmpty` is written but,
+like §12 and §14's device checks, needs a phone rather than the emulator this session
+had available.
+
 ### And the §8 accessibility question, answered
 
 `SemanticsTest` (instrumented, Compose `ui-test-junit4`) asserts against the

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -325,6 +326,8 @@ fun <T> ChoiceChips(
                                 overflow = TextOverflow.Ellipsis
                             )
                         },
+                        shape = CircleShape,
+                        border = null,
                         modifier = Modifier.weight(1f)
                     )
                 }

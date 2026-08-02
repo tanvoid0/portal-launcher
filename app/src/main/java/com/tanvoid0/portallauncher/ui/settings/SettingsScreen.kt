@@ -106,7 +106,7 @@ fun SettingsScreen(
                     }
                 )
             }
-            PortalGroup(title = stringResource(R.string.settings_portal)) {
+            PortalGroup(title = stringResource(R.string.settings_backup)) {
                 PortalRow(
                     title = stringResource(R.string.back_up),
                     subtitle = stringResource(R.string.back_up_subtitle),
@@ -120,6 +120,8 @@ fun SettingsScreen(
                     icon = Icons.Default.Restore,
                     onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
                 )
+            }
+            PortalGroup(title = stringResource(R.string.settings_schedule)) {
                 PortalRow(
                     title = stringResource(R.string.schedule),
                     subtitle = stringResource(R.string.schedule_row_subtitle),
