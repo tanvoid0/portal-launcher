@@ -336,6 +336,48 @@ fun <T> ChoiceChips(
 }
 
 /**
+ * Pick any subset of a small set. Same layout as [ChoiceChips]; the difference is only
+ * that selection toggles instead of moving.
+ */
+@Composable
+fun <T> MultiChoiceChips(
+    options: List<T>,
+    selected: Set<T>,
+    onToggle: (T) -> Unit,
+    label: (T) -> String,
+    modifier: Modifier = Modifier,
+    perRow: Int = 3
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        options.chunked(perRow).forEach { rowOptions ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                rowOptions.forEach { option ->
+                    FilterChip(
+                        selected = option in selected,
+                        onClick = { onToggle(option) },
+                        label = {
+                            Text(
+                                text = label(option),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(perRow - rowOptions.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/**
  * Nothing to show, and why.
  *
  * Set [onWallpaper] on the home screen and leave it false anywhere with an opaque

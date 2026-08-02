@@ -34,6 +34,7 @@ import com.tanvoid0.portallauncher.ui.kit.Spacing
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onOpenHiddenApps: () -> Unit = {},
+    onOpenSchedule: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel()
 ) {
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
@@ -116,9 +117,10 @@ fun SettingsScreen(
                     onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
                 )
                 PortalRow(
-                    title = "Scheduler",
-                    subtitle = "Switch profiles by time or automation",
-                    icon = Icons.Default.Schedule
+                    title = "Schedule",
+                    subtitle = "Switch profiles by time of day",
+                    icon = Icons.Default.Schedule,
+                    onClick = onOpenSchedule
                 )
             }
         }

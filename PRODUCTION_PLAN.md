@@ -830,3 +830,48 @@ been re-run: the test phone became unavailable. This is the one thing in §12 th
 still needs a device before it can be called done, and it needs a phone that is
 not the tester's daily driver, because the bind-consent dialog is a real system
 prompt.
+
+---
+
+## 13. Automations and schedules became reachable
+
+Done 2026-08-02. This closes §11's "biggest gap": greyscale, notification rules
+and schedules were functional but could only be set from a seeded default or a
+restored backup.
+
+### The profile editor edits profiles now
+
+`ProfileEditScreen` gained what §5.3 asked for: the category set the profile
+puts on the home screen (multi-select chips; empty = all apps), and a card per
+registered automation driven by `AutomationRegistry` + `AutomationAvailability` —
+a switch when the automation can run, the reason and a **Grant** button when a
+permission is missing (refreshed on resume, because the grant happens in another
+app's UI), and the reason alone when the device cannot do it at all. Greyscale
+gets an intensity slider and the developer-options deep link; the notification
+filter gets a per-package picker and an explicit snooze-vs-dismiss switch that
+spells out that dismiss loses notifications.
+
+Fixed on the way, because the rebuild made it visible:
+**`saveProfile` hardcoded `enabledAutomationIds = [app_visibility]`** — saving
+any profile from the editor silently wiped every automation it had on. The
+editor now round-trips the full set, keeps ids it does not recognise, and writes
+configs even for automations currently off so switching one back on finds its
+settings where the user left them.
+
+### The schedule is global now, and has a screen
+
+§11 stored `SchedulerConfig` per profile and read it from the **active**
+profile. That design self-destructs: when a slot fires and switches to profile
+B, B's (empty) config governs the next transition, so every schedule died the
+first time it worked. The timetable moved to one `SchedulerConfig` JSON in
+DataStore (`PreferencesRepository.scheduleJson`); the scheduler reads only
+that. Per-profile scheduler rows are simply never read any more — no migration,
+dev installs only.
+
+Settings → Schedule lists the slots (start – end → profile, delete inline) and
+adds one through a dialog: two `TimePickerDialog`s, profile chips, an "ends the
+next day" note when the range wraps midnight. Every mutation persists and
+re-arms the alarm in the same step, so the pending alarm can never describe a
+timetable other than the stored one. Backups carry the timetable
+(`scheduleJson`, additive so old files still read); restore drops slots naming
+profiles the file does not contain, same rule as the dangling active id.

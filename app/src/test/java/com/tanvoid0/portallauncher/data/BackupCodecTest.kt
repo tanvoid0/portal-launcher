@@ -39,7 +39,10 @@ class BackupCodecTest {
             )
         ),
         activeProfileId = "study",
-        customLayoutProfileIds = listOf("study")
+        customLayoutProfileIds = listOf("study"),
+        scheduleJson = ConfigCodec.encode(
+            SchedulerConfig(slots = listOf(ScheduleSlot(9 * 60, 17 * 60, "study")))
+        )
     )
 
     @Test
@@ -114,6 +117,12 @@ class BackupCodecTest {
         val restored = both.homeCellsForRestore().single()
         assertEquals("com.example.new", restored.packageName)
         assertEquals(Slot(1, 2, 3), restored.slot)
+    }
+
+    @Test
+    fun `a backup from before the schedule existed reads with no schedule`() {
+        val old = """{"schemaVersion":1,"profiles":[],"overrides":[]}"""
+        assertNull(BackupCodec.decode(old).getOrThrow().scheduleJson)
     }
 
     @Test

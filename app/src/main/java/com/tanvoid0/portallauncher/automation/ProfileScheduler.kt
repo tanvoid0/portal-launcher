@@ -7,8 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.tanvoid0.portallauncher.PortalLauncherApplication
-import com.tanvoid0.portallauncher.data.AutomationIds
 import com.tanvoid0.portallauncher.data.ConfigCodec
+import com.tanvoid0.portallauncher.data.PreferencesRepository
 import com.tanvoid0.portallauncher.data.ScheduleSlot
 import com.tanvoid0.portallauncher.data.SchedulerConfig
 import kotlinx.coroutines.CoroutineScope
@@ -37,23 +37,27 @@ class ProfileScheduler(private val context: Context) {
      * Resolves what should be active now, applies it, and arms the next transition.
      * Safe to call repeatedly — that is how boot, a clock change and each fire all
      * converge on the same state.
+     *
+     * The timetable is **global** ([PreferencesRepository.scheduleJson]), not read from
+     * the active profile's config: a schedule stored on the profile it switches *from*
+     * dies the moment it fires, because the incoming profile's config governs the next
+     * transition and it has none.
      */
     suspend fun sync() {
         val app = context.applicationContext as? PortalLauncherApplication ?: return
-        val active = app.activeProfileSource.activeConfigs.first()
-        val enabled = active.isEnabled(AutomationIds.SCHEDULER)
         val config = ConfigCodec.decodeOr(
-            active.configJson(AutomationIds.SCHEDULER),
+            app.preferencesRepository.scheduleJson.first(),
             SchedulerConfig()
         )
-        if (!enabled || config.slots.isEmpty()) {
+        if (config.slots.isEmpty()) {
             cancel()
             return
         }
 
+        val active = app.activeProfileSource.activeProfile.first()
         val nowMinutes = currentMinuteOfDay()
         slotFor(nowMinutes, config.slots)?.let { slot ->
-            if (slot.profileId != active.profile?.id) {
+            if (slot.profileId != active?.id) {
                 app.preferencesRepository.setActiveProfileId(slot.profileId)
             }
         }

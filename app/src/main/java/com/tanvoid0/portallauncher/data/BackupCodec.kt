@@ -35,7 +35,9 @@ data class LauncherBackup(
     val profiles: List<BackupProfile> = emptyList(),
     val overrides: List<AppOverrideEntity> = emptyList(),
     val activeProfileId: String? = null,
-    val customLayoutProfileIds: List<String> = emptyList()
+    val customLayoutProfileIds: List<String> = emptyList(),
+    /** The global profile timetable, as [SchedulerConfig] JSON. Null when none is set. */
+    val scheduleJson: String? = null
 ) {
     companion object {
         const val CURRENT_SCHEMA_VERSION = 1

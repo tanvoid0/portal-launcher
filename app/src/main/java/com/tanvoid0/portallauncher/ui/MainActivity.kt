@@ -36,6 +36,7 @@ import com.tanvoid0.portallauncher.ui.onboarding.OnboardingScreen
 import com.tanvoid0.portallauncher.ui.profiles.ProfileEditScreen
 import com.tanvoid0.portallauncher.ui.profiles.ProfileListScreen
 import com.tanvoid0.portallauncher.ui.settings.HiddenAppsScreen
+import com.tanvoid0.portallauncher.ui.settings.ScheduleScreen
 import com.tanvoid0.portallauncher.ui.settings.SettingsScreen
 import com.tanvoid0.portallauncher.ui.theme.PortalLauncherTheme
 import com.tanvoid0.portallauncher.widgets.ActivityWidgetPlacement
@@ -192,10 +193,14 @@ class MainActivity : ComponentActivity() {
                                 SettingsScreen(
                                     onOpenHiddenApps = {
                                         navController.navigate(Routes.HIDDEN_APPS)
+                                    },
+                                    onOpenSchedule = {
+                                        navController.navigate(Routes.SCHEDULE)
                                     }
                                 )
                             }
                             composable(Routes.HIDDEN_APPS) { HiddenAppsScreen() }
+                            composable(Routes.SCHEDULE) { ScheduleScreen() }
                         }
                     }
                 }

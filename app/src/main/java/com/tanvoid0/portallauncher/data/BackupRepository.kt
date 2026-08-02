@@ -49,7 +49,8 @@ class BackupRepository(
             },
             overrides = appOverrideDao.observeAll().first(),
             activeProfileId = preferencesRepository.activeProfileId.first(),
-            customLayoutProfileIds = customLayouts.toList()
+            customLayoutProfileIds = customLayouts.toList(),
+            scheduleJson = preferencesRepository.scheduleJson.first()
         )
     }
 
@@ -107,6 +108,16 @@ class BackupRepository(
         backup.activeProfileId
             ?.takeIf { id -> backup.profiles.any { it.id == id } }
             ?.let { preferencesRepository.setActiveProfileId(it) }
+
+        // Slots naming a profile the file does not contain are dropped, same as the
+        // dangling-active-id rule above: a slot that fires and points at nothing would
+        // exercise the fallback in production instead of doing what the timetable says.
+        val restoredIds = backup.profiles.mapTo(mutableSetOf()) { it.id }
+        val schedule = ConfigCodec.decodeOr(backup.scheduleJson, SchedulerConfig())
+            .let { it.copy(slots = it.slots.filter { slot -> slot.profileId in restoredIds }) }
+        preferencesRepository.setScheduleJson(
+            if (schedule.slots.isEmpty()) null else ConfigCodec.encode(schedule)
+        )
 
         // A restored setup is the user's own, so the built-ins must not be seeded over
         // the top of it on next launch.

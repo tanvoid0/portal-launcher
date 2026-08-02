@@ -44,6 +44,12 @@ private val KEY_SETUP_COMPLETE = booleanPreferencesKey("setup_complete")
  */
 private val KEY_CUSTOM_LAYOUT_PROFILE_IDS = stringSetPreferencesKey("custom_layout_profile_ids")
 
+// The profile timetable, one SchedulerConfig as JSON. Global, not per profile: a
+// schedule stored on the profile it switches *from* dies the moment it fires — the
+// incoming profile's (empty) config would govern the next transition. A timetable is
+// a statement about the day, not about any one profile.
+private val KEY_SCHEDULE_JSON = stringPreferencesKey("schedule_json")
+
 // The home grid, in cells. Device-wide rather than per profile: it is a statement about
 // how big you want icons on this screen, not about what a profile is for — and a grid
 // that changed under you when a schedule switched profiles would move every icon.
@@ -97,6 +103,18 @@ class PreferencesRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             if (profileId != null) prefs[KEY_ACTIVE_PROFILE_ID] = profileId
             else prefs.remove(KEY_ACTIVE_PROFILE_ID)
+        }
+    }
+
+    /** The profile timetable as SchedulerConfig JSON, or null when none is set. */
+    val scheduleJson: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_SCHEDULE_JSON]
+    }
+
+    suspend fun setScheduleJson(json: String?) {
+        context.dataStore.edit { prefs ->
+            if (json != null) prefs[KEY_SCHEDULE_JSON] = json
+            else prefs.remove(KEY_SCHEDULE_JSON)
         }
     }
 
