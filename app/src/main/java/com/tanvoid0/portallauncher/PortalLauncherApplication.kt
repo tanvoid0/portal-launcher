@@ -2,6 +2,9 @@ package com.tanvoid0.portallauncher
 
 import android.app.Application
 import com.tanvoid0.portallauncher.ai.GeminiNanoCategorizer
+import com.tanvoid0.portallauncher.automation.ProfileEngine
+import com.tanvoid0.portallauncher.automation.ProfileScheduler
+import com.tanvoid0.portallauncher.data.ActiveProfileSource
 import com.tanvoid0.portallauncher.data.AppDatabase
 import com.tanvoid0.portallauncher.data.AppRepository
 import com.tanvoid0.portallauncher.data.IconCache
@@ -26,6 +29,15 @@ class PortalLauncherApplication : Application() {
     val iconCache: IconCache by lazy { IconCache(this, appRepository, appScope) }
     val profileRepository: ProfileRepository by lazy {
         ProfileRepository(database.profileDao(), database.automationConfigDao())
+    }
+
+    /**
+     * The single answer to "which profile is in effect". Shared by the launcher UI, the
+     * automation engine, the notification listener, the scheduler and the tile, so they
+     * cannot disagree about what is active.
+     */
+    val activeProfileSource: ActiveProfileSource by lazy {
+        ActiveProfileSource(profileRepository, preferencesRepository)
     }
 
     /**
@@ -59,6 +71,12 @@ class PortalLauncherApplication : Application() {
                 profileRepository.seedBuiltInProfiles()
                 preferencesRepository.setBuiltInProfilesSeeded(true)
             }
+            // After seeding, so the first sync sees the profiles it may need to switch to.
+            ProfileScheduler(this@PortalLauncherApplication).sync()
         }
+        // Applies and reverts automations for the lifetime of the process. Started here
+        // rather than from an Activity because a profile's effects must not depend on the
+        // launcher UI being on screen.
+        ProfileEngine(this, activeProfileSource).start(appScope)
     }
 }

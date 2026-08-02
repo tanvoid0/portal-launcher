@@ -28,7 +28,7 @@ class ConfigCodecTest {
         val notifications = NotificationFilterConfig(
             allowedPackageNames = listOf("com.android.dialer"),
             blockedPackageNames = listOf("com.example.spam"),
-            silenceAllExcept = null
+            cancelOnFilter = true
         )
         assertEquals(
             notifications,

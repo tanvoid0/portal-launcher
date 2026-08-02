@@ -24,6 +24,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tanvoid0.portallauncher.PortalLauncherApplication
+import com.tanvoid0.portallauncher.automation.greyscale
+import com.tanvoid0.portallauncher.data.AutomationIds
+import com.tanvoid0.portallauncher.data.ConfigCodec
+import com.tanvoid0.portallauncher.data.GreyscaleConfig
 import com.tanvoid0.portallauncher.ui.adaptive.AdaptiveLauncherScaffold
 import com.tanvoid0.portallauncher.ui.adaptive.NavItem
 import com.tanvoid0.portallauncher.ui.launcher.LauncherHomeScreen
@@ -68,8 +72,28 @@ class MainActivity : ComponentActivity() {
                 // (windowShowWallpaper in Theme.PortalLauncher), and an opaque Surface
                 // would hide it. contentColor is explicit because a transparent
                 // container cannot imply one.
+                // The active profile's greyscale setting, read here because it wraps
+                // every screen. Device-wide greyscale is impossible for a normal app —
+                // see GreyscaleAutomation — so this is the launcher's own surfaces.
+                val greyscale by produceState(1f) {
+                    val app = application as PortalLauncherApplication
+                    app.activeProfileSource.activeConfigs.collect { active ->
+                        val config = ConfigCodec.decodeOr(
+                            active.configJson(AutomationIds.GREYSCALE),
+                            GreyscaleConfig()
+                        )
+                        value = if (active.isEnabled(AutomationIds.GREYSCALE) && config.enabled) {
+                            1f - config.intensity.coerceIn(0f, 1f)
+                        } else {
+                            1f
+                        }
+                    }
+                }
+
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .greyscale(greyscale),
                     color = Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {

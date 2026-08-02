@@ -17,10 +17,18 @@
     </queries>
 
     <!--
-      Permissions are declared in the phase that first uses them, so review never
-      sees a permission with no implementation behind it:
+      RECEIVE_BOOT_COMPLETED: alarms do not survive a reboot, so a scheduled profile
+      switch is silently lost without this.
+      SCHEDULE_EXACT_ALARM: "Productivity at 09:00" is a promise; inexact alarms in Doze
+      can be hours late. ProfileScheduler degrades to an inexact alarm if it is refused.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!--
+      Still not declared, because nothing implements them yet and a permission with no
+      code behind it is review liability:
         SYSTEM_ALERT_WINDOW + FOREGROUND_SERVICE_SPECIAL_USE -> app blocker overlay
-        POST_NOTIFICATIONS                                   -> blocker/scheduler notices
       See PRODUCTION_PLAN.md phase 6.
     -->
 
@@ -51,6 +59,36 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!--
+          Quick Settings tile that cycles profiles. Reachable from inside any app, which
+          is where the user is when they notice they are in the wrong mode.
+        -->
+        <service
+            android:name=".automation.ProfileTileService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!--
+          Re-arms the profile schedule. Not exported: only the alarm we set and the
+          system's own boot/time broadcasts should ever reach it.
+        -->
+        <receiver
+            android:name=".automation.ProfileScheduleReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="com.tanvoid0.portallauncher.action.SCHEDULE_TICK" />
+            </intent-filter>
+        </receiver>
 
         <!-- NotificationListenerService for per-profile notification filtering. -->
         <service

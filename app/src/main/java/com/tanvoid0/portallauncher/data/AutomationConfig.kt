@@ -62,9 +62,19 @@ data class AppBlockerConfig(
 
 @Serializable
 data class NotificationFilterConfig(
+    /**
+     * When set, *only* these packages get through and [blockedPackageNames] is ignored.
+     * A stronger, clearer statement than a block-list; combining the two silently is how
+     * a filter ends up hiding a phone call.
+     */
     val allowedPackageNames: List<String>? = null,
     val blockedPackageNames: List<String> = emptyList(),
-    val silenceAllExcept: List<String>? = null
+    /**
+     * False means snooze — the notification comes back when the profile ends. True
+     * destroys it. Defaults to the recoverable option, and the editor must say which
+     * is which, because a user who loses a message will not forgive the app for it.
+     */
+    val cancelOnFilter: Boolean = false
 )
 
 @Serializable
