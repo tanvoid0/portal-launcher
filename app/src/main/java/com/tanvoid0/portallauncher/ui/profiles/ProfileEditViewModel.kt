@@ -7,7 +7,7 @@ import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.data.AppVisibilityConfig
 import com.tanvoid0.portallauncher.data.AutomationConfigEntity
 import com.tanvoid0.portallauncher.data.AutomationIds
-import com.tanvoid0.portallauncher.data.ConfigJson
+import com.tanvoid0.portallauncher.data.ConfigCodec
 import com.tanvoid0.portallauncher.data.ProfileEntity
 import com.tanvoid0.portallauncher.data.ProfileType
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,7 +90,7 @@ class ProfileEditViewModel(application: Application) : AndroidViewModel(applicat
                 AutomationConfigEntity(
                     profileId = id,
                     automationId = AutomationIds.APP_VISIBILITY,
-                    configJson = ConfigJson.appVisibilityToStr(visibilityConfig)
+                    configJson = ConfigCodec.encode(visibilityConfig)
                 )
             )
             onSaved()

@@ -2,7 +2,16 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+}
+
+// Room writes the schema of every version here, and these files are committed.
+// They are what makes a migration reviewable and testable: MigrationTestHelper
+// builds an old database from them, and Room validates the post-migration schema
+// against them. Without the export, a migration can only be verified by hand.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 android {
@@ -50,6 +59,9 @@ android {
         buildConfig = true
     }
 
+    // MigrationTestHelper reads the exported schemas as instrumentation assets.
+    sourceSets.getByName("androidTest").assets.srcDirs("$projectDir/schemas")
+
     lint {
         warningsAsErrors = true
         abortOnError = true
@@ -94,9 +106,12 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.mlkit.genai.prompt)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.runner)
 }

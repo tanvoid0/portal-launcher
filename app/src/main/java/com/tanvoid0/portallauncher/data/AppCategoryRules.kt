@@ -7,6 +7,21 @@ package com.tanvoid0.portallauncher.data
 object AppCategoryRules {
 
     private val rules: List<Pair<(String) -> Boolean, AppCategory>> = listOf(
+        // Wellness and Driving come first because the lists below lead with broad
+        // keywords — "drive" is a Study rule, "game" a Gaming one — and a substring
+        // list gives the win to whichever rule appears earlier. These keywords are
+        // narrow enough that being first costs nothing.
+        // Wellness
+        { pkg: String -> pkg.contains("health") || pkg.contains("fitness") || pkg.contains("fitbit") } to AppCategory.Wellness,
+        { pkg: String -> pkg.contains("calm") || pkg.contains("headspace") || pkg.contains("meditat") } to AppCategory.Wellness,
+        { pkg: String -> pkg.contains("sleep") || pkg.contains("yoga") || pkg.contains("workout") } to AppCategory.Wellness,
+        { pkg: String -> pkg.contains("strava") || pkg.contains("runkeeper") || pkg.contains("garmin") } to AppCategory.Wellness,
+        // Driving
+        { pkg: String -> pkg.contains("maps") || pkg.contains("waze") || pkg.contains("navigation") } to AppCategory.Driving,
+        // Android Auto ships as "projection.gearhead"; neither half says "auto",
+        // and matching "auto" itself would swallow Autodesk and Automattic.
+        { pkg: String -> pkg.contains("gearhead") || pkg.contains("androidauto") } to AppCategory.Driving,
+        { pkg: String -> pkg.contains("ubercab") || pkg.contains("lyft") || pkg.contains("parking") } to AppCategory.Driving,
         // Study
         { pkg: String -> pkg.contains("adobe") || pkg.contains("reader") } to AppCategory.Study,
         { pkg: String -> pkg.contains("drive") || pkg.contains("docs") } to AppCategory.Study,

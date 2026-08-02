@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,7 +23,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.tanvoid0.portallauncher.data.DefaultHomeStatus
+import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.ui.adaptive.AdaptiveLauncherScaffold
 import com.tanvoid0.portallauncher.ui.adaptive.NavItem
 import com.tanvoid0.portallauncher.ui.launcher.LauncherHomeScreen
@@ -32,6 +34,7 @@ import com.tanvoid0.portallauncher.ui.profiles.ProfileListScreen
 import com.tanvoid0.portallauncher.ui.settings.SettingsScreen
 import com.tanvoid0.portallauncher.ui.theme.PortalLauncherTheme
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
 
@@ -45,6 +48,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             PortalLauncherTheme {
+                // Setup is shown until it has been finished or skipped, and that fact
+                // is persisted — the old per-process check meant a cold start, which
+                // for the home app happens whenever the system reclaims us, put the
+                // user back on the first-run screen.
+                val preferences = remember {
+                    (application as PortalLauncherApplication).preferencesRepository
+                }
+                val setupComplete by produceState<Boolean?>(null) {
+                    value = preferences.setupComplete.first()
+                }
+                // Nothing is drawn for the frame or two that read takes. The window is
+                // already transparent over the wallpaper, so there is no flash — this
+                // is the launcher looking like the wallpaper, briefly.
+                val isSetupComplete = setupComplete ?: return@PortalLauncherTheme
+
                 // Transparent: the system wallpaper is drawn behind this window
                 // (windowShowWallpaper in Theme.PortalLauncher), and an opaque Surface
                 // would hide it. contentColor is explicit because a transparent
@@ -77,17 +95,8 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Onboarding is the entry point until we actually are the home
-                    // app; nothing else about a launcher can be judged before that.
-                    // "Skip for now" navigates past it, so the nag is per-process
-                    // rather than needing a persisted flag.
-                    val startDestination = remember {
-                        if (DefaultHomeStatus.isDefaultHome(this@MainActivity)) {
-                            Routes.LAUNCHER_HOME
-                        } else {
-                            Routes.ONBOARDING
-                        }
-                    }
+                    val startDestination =
+                        if (isSetupComplete) Routes.LAUNCHER_HOME else Routes.ONBOARDING
 
                     AdaptiveLauncherScaffold(
                         currentRoute = currentRoute,

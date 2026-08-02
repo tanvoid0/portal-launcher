@@ -32,10 +32,12 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -60,6 +62,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -95,11 +98,11 @@ fun LauncherHomeScreen(
     var appDrawerOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val apps = uiState.apps
     // ponytail: "pinned" is still the first N alphabetically. Phase 3 backs this
     // with the home_item table so the user actually chooses and reorders them.
-    val pinnedApps = apps.take(PINNED_APP_COUNT)
-    val dockApps = remember(apps) { resolveDockApps(apps) }
+    val pinnedApps = uiState.homeApps.take(PINNED_APP_COUNT)
+    // Dock and drawer deliberately ignore the profile filter — see LauncherUiState.
+    val dockApps = remember(uiState.allApps) { resolveDockApps(uiState.allApps) }
 
     // The system wallpaper shows through the window itself (windowShowWallpaper in
     // Theme.PortalLauncher), so live wallpapers and parallax work and we hold no
@@ -129,7 +132,16 @@ fun LauncherHomeScreen(
                         FilterChip(
                             selected = uiState.activeProfile?.id == profile.id,
                             onClick = { viewModel.setActiveProfile(profile.id) },
-                            label = { Text(profile.name) }
+                            label = { Text(profile.name) },
+                            // An unselected chip defaults to a transparent container,
+                            // which puts its label straight onto the wallpaper and
+                            // makes it unreadable over anything dark. Give it the same
+                            // frosted backing the search pill and date card use.
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme
+                                    .surfaceContainerHighest.copy(alpha = 0.6f),
+                                labelColor = MaterialTheme.colorScheme.onSurface
+                            )
                         )
                     }
                 }
@@ -139,22 +151,36 @@ fun LauncherHomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(HOME_GRID_COLUMNS),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                items(pinnedApps, key = { it.key }) { app ->
-                    AppIconCell(
-                        app = app,
-                        viewModel = viewModel,
-                        onClick = { viewModel.launch(app) },
-                        onWallpaper = true
-                    )
+            if (pinnedApps.isEmpty() && uiState.allApps.isNotEmpty()) {
+                // A profile whose categories match nothing installed. Rendering an
+                // empty grid here is indistinguishable from the launcher being broken,
+                // and the way out — the drawer, or another profile — is not obvious
+                // from a blank screen.
+                EmptyProfileNotice(
+                    profileName = uiState.activeProfile?.name,
+                    onOpenDrawer = { appDrawerOpen = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(HOME_GRID_COLUMNS),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    items(pinnedApps, key = { it.key }) { app ->
+                        AppIconCell(
+                            app = app,
+                            viewModel = viewModel,
+                            onClick = { viewModel.launch(app) },
+                            onWallpaper = true
+                        )
+                    }
                 }
             }
 
@@ -173,7 +199,7 @@ fun LauncherHomeScreen(
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 AppDrawerContent(
-                    apps = apps,
+                    apps = uiState.allApps,
                     viewModel = viewModel,
                     onLaunch = { app ->
                         appDrawerOpen = false
@@ -234,6 +260,39 @@ private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/**
+ * Shown when the active profile's categories match nothing installed — which is the
+ * normal state of the Study profile on a device with no study apps on it. Says which
+ * profile is responsible and leaves a way out, rather than looking like a launcher
+ * that failed to load.
+ */
+@Composable
+private fun EmptyProfileNotice(
+    profileName: String?,
+    onOpenDrawer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = if (profileName != null) "No apps in $profileName" else "No apps to show",
+            style = MaterialTheme.typography.titleMedium.merge(OnWallpaperTextStyle)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Nothing installed matches this profile's categories. " +
+                "Every app is still in the drawer.",
+            style = MaterialTheme.typography.bodyMedium.merge(OnWallpaperTextStyle),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onOpenDrawer) { Text("Open app drawer") }
     }
 }
 

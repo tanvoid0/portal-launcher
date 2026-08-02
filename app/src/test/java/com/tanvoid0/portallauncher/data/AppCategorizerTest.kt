@@ -29,6 +29,17 @@ class AppCategorizerTest {
     }
 
     @Test
+    fun `a declared maps app is a driving app`() {
+        // The one system category with no keyword behind it: a navigation app the
+        // rules have never heard of still lands in Driving because the developer
+        // declared it.
+        assertEquals(
+            AppCategory.Driving,
+            AppCategorizer.categoryFor(ApplicationInfo.CATEGORY_MAPS, "com.example.sat.nav", emptyMap())
+        )
+    }
+
+    @Test
     fun `keyword rules apply when the system declares nothing`() {
         assertEquals(
             AppCategory.Social,

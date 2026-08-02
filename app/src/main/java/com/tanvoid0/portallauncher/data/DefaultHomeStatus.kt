@@ -34,6 +34,12 @@ object DefaultHomeStatus {
      * screen — the user has to make the choice there themselves, so any caller
      * must re-check [isDefaultHome] when it regains focus rather than assuming
      * a result came back.
+     *
+     * Launch this **for a result**, not with `startActivity`. The role dialog can
+     * finish without ever drawing — some builds report the role as available and
+     * then decline to prompt — and started fire-and-forget that failure is
+     * indistinguishable from the button doing nothing at all. With a result the
+     * caller can re-check [isDefaultHome] and offer [homeSettingsIntent] instead.
      */
     fun requestIntent(context: Context): Intent? {
         if (isDefaultHome(context)) return null
@@ -46,6 +52,13 @@ object DefaultHomeStatus {
                 return roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
             }
         }
-        return Intent(Settings.ACTION_HOME_SETTINGS)
+        return homeSettingsIntent()
     }
+
+    /**
+     * The system's home-app picker. The fallback for a role dialog that never
+     * appeared, and the only route at all below API 29. Returns no result — the
+     * caller re-checks [isDefaultHome] on resume.
+     */
+    fun homeSettingsIntent(): Intent = Intent(Settings.ACTION_HOME_SETTINGS)
 }

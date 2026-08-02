@@ -1,6 +1,7 @@
 package com.tanvoid0.portallauncher.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class ProfileRepository(
@@ -23,6 +24,41 @@ class ProfileRepository(
 
     suspend fun updateSortOrder(id: String, order: Int) = profileDao.updateSortOrder(id, order)
 
+    /**
+     * Inserts every [BuiltInProfiles] entry that is not already in the table, with
+     * its app-visibility config.
+     *
+     * Missing-only rather than insert-all: an install from before the built-ins
+     * existed already has a "default" row, and overwriting it would throw away
+     * whatever the user had done to it. The caller is responsible for running this
+     * once — re-running it would resurrect profiles the user deleted.
+     */
+    suspend fun seedBuiltInProfiles() {
+        val existing = profileDao.getAllProfiles().first().mapTo(mutableSetOf()) { it.id }
+        // Index into `all`, not into the filtered remainder: the sort order has to
+        // match the declared order even when some of the list is already present.
+        BuiltInProfiles.all.forEachIndexed { index, builtIn ->
+            if (builtIn.id in existing) return@forEachIndexed
+            profileDao.insert(
+                ProfileEntity(
+                    id = builtIn.id,
+                    name = builtIn.name,
+                    iconResName = builtIn.id,
+                    type = builtIn.type.name,
+                    enabledAutomationIds = BuiltInProfiles.enabledAutomationIds,
+                    sortOrder = index
+                )
+            )
+            automationConfigDao.insert(
+                AutomationConfigEntity(
+                    profileId = builtIn.id,
+                    automationId = AutomationIds.APP_VISIBILITY,
+                    configJson = ConfigCodec.encode(BuiltInProfiles.visibilityConfig(builtIn))
+                )
+            )
+        }
+    }
+
     fun getAutomationConfig(profileId: String, automationId: String): Flow<AutomationConfigEntity?> =
         automationConfigDao.getConfig(profileId, automationId)
 
@@ -34,6 +70,22 @@ class ProfileRepository(
 
     fun getVisibilityConfigForProfile(profileId: String): Flow<AppVisibilityConfig?> =
         automationConfigDao.getConfig(profileId, AutomationIds.APP_VISIBILITY).map { entity ->
-            entity?.let { ConfigJson.parseAppVisibility(it.configJson) }
+            entity?.let { ConfigCodec.decodeOr(it.configJson, AppVisibilityConfig()) }
         }
 }
+
+/**
+ * The profile actually in effect, given the stored id.
+ *
+ * The stored id can point at nothing: deleting the active profile leaves the
+ * preference dangling, and a fresh install has an id before it has rows. Both used
+ * to resolve to null, which silently disabled all filtering and left no profile
+ * selected in the list. Falling back keeps a profile in effect at all times.
+ *
+ * Pure so both the home screen and the profile list resolve it identically — if they
+ * disagreed, the list would show one profile selected while another was applied.
+ */
+fun resolveActiveProfile(profiles: List<ProfileEntity>, activeId: String?): ProfileEntity? =
+    profiles.find { it.id == activeId }
+        ?: profiles.find { it.id == BuiltInProfiles.DEFAULT_ID }
+        ?: profiles.firstOrNull()

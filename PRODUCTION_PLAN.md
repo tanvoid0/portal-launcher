@@ -2,8 +2,8 @@
 
 Written 2026-08-02. Supersedes the "Next steps" section of [plan.md](plan.md) (which stays as the product spec).
 
-**Status: phases 0 and 1 are done.** See §8 for what actually landed and what the
-work changed about the plan. Phases 2–9 below are unchanged and still to do.
+**Status: phases 0, 1 and 2 are done.** See §8 and §9 for what actually landed and
+what the work changed about the plan. Phases 3–9 below are still to do.
 
 ---
 
@@ -76,6 +76,9 @@ The two apps you referenced sit at opposite ends:
 Your current code is closer to a Pixel Launcher clone (icon grid, dock, search pill, wallpaper) but the *differentiator* in `plan.md` is the profile engine — which no other launcher does well.
 
 **Recommendation:** **Olauncher's surface area, Smart Launcher's categorisation, your profile engine as the hook.** Concretely — cut widgets, folders, icon packs, and multi-page home from v1.0. Those are each multi-week features that every competitor already does better, and none of them make your profile idea land. Ship: one home page, a categorised drawer, search, gestures, profiles + automations. That is a defensible v1.0.
+
+> **Decided 2026-08-02: this option.** Widgets, folders, icon packs and
+> multi-page home are out of v1.0 — see §5. The phase estimates in §7 assume it.
 
 ---
 
@@ -478,3 +481,98 @@ the home screen and wrong everywhere else: any destination that is not the home
 screen needs an opaque background, or it renders over whatever is behind the
 window. `AdaptiveLauncherScaffold` takes `showNav` and sets a transparent
 container; if a new full-screen destination looks black, this is why.
+
+---
+
+## 9. What phase 2 actually did
+
+Done 2026-08-02. Verified by a green `assembleDebug + assembleRelease +
+lintDebug + testDebugUnitTest` (29 unit tests) and by
+`connectedDebugAndroidTest` on a Pixel 9a emulator (2 migration tests).
+
+### Defects closed
+
+D8, D9, D11 (finished), D12 (the table, not the UI). D10 was **not** done as
+written — see below. Still open: D14, D17, and D12's home-screen UI.
+
+### Migrations are now real
+
+- `exportSchema = true`, schemas written to `app/schemas` and committed, with
+  `ksp { arg("room.schemaLocation", …) }`.
+- **`fallbackToDestructiveMigration()` is gone.** It turned a forgotten
+  migration from a build failure into silently deleting every profile the user
+  made. A missing migration should stop us, not cost them their setup.
+- Migrations moved out of the companion into `AppDatabaseMigrations` so a test
+  can run one directly against the previous version's exported schema.
+- `MigrationTest` (instrumented) asserts a *renamed* profile and its automation
+  config both survive 2→3 — a rename is what proves nothing was recreated from
+  defaults — and that deleting a profile cascades its home layout away.
+  `runMigrationsAndValidate` also diffs the post-migration schema against the
+  exported JSON, so migration SQL that drifts from the entity fails in CI.
+
+Sequencing worth remembering: the v2 schema had to be exported **before**
+bumping to v3, or there would be no baseline for the test to build v2 from.
+
+### Configs are JSON, and five of them can now be stored at all
+
+`kotlinx.serialization` replaces `ConfigJson.kt`, whose hand-rolled
+`"primary:a,b;secondary:c"` format covered exactly one of six config types and
+silently corrupted any value containing `,` or `;`. `ConfigCodec` handles all
+six. `ignoreUnknownKeys` plus a default on every field means an older build can
+read a config a newer one wrote; `decodeOr` falls back rather than throwing,
+because a config that fails to parse would otherwise crash the home screen, and
+a user with no home screen has no way to recover. `ConfigCodecTest` covers the
+round trip, the values that broke the old format, legacy rows still on dev
+installs, and an unknown future field.
+
+**The plan was wrong about `Converters.kt`** — it said to delete that too. Room
+still needs a `List<String>` converter for `ProfileEntity.enabledAutomationIds`,
+so replacing it with a JSON one is the same line count plus a data-compat break
+for zero gain. It stays.
+
+### D10: not moved into a RoomDatabase.Callback
+
+`onCreate` hands you a raw `SupportSQLiteDatabase`, so seeding there means
+re-expressing every `BuiltInProfiles` entry as `execSQL` and keeping the two in
+step by hand. The race it closes is one frame of an unfiltered home screen —
+which is exactly what the "All apps" profile shows anyway. Duplicated SQL is the
+worse trade. Instead: the application got a named `SupervisorJob` scope, and the
+real fix went in at the read side (below).
+
+### A bug found next door: the dangling active profile
+
+Deleting the active profile left `activeProfileId` pointing at nothing. The
+active profile resolved to null, which silently disabled **all** filtering, and
+the profile list showed nothing selected while the home screen applied nothing.
+`resolveActiveProfile` now falls back stored id → default profile → first
+profile, and both screens go through it, so what is shown as active and what is
+applied cannot disagree. The visibility config is keyed off the *resolved*
+profile rather than the raw preference for the same reason.
+
+### Home layout table
+
+`home_item(profileId, packageName, activityName, userSerial, position)`,
+per-profile, cascading from `profiles`. Keyed on `userSerial` from
+`UserManager.getSerialNumberForUser` rather than a `UserHandle`, because a pinned
+work-profile app has to still resolve after a reboot and `UserHandle` is only
+meaningful for the current boot. `replaceForProfile` rewrites a reorder in one
+transaction instead of N position updates, which would leave duplicate positions
+if the process died partway. **Phase 3 still has to build the UI on top of it** —
+pinned apps are still the first 8 alphabetically.
+
+### Two findings from running it on a device
+
+- **The Study profile is empty on a stock device.** `AppCategorizer` prefers
+  `ApplicationInfo.category`, and Calendar and Drive both declare
+  `CATEGORY_PRODUCTIVITY` — so they land in Productivity, and Study matches
+  nothing. Productivity showed Calendar/Chrome/Drive/Gmail; Study showed zero.
+  `BuiltInProfiles`' comment that Productivity includes Study "because the rules
+  file resolves Drive, Docs and Calendar to Study" is therefore stale: the system
+  category wins first. **Phase 4 owns this** — it is precisely the coverage gap
+  the on-device model is for.
+- A profile matching nothing rendered a blank screen, which is the silent no-op
+  this plan forbids. Fixed now rather than deferred: `EmptyProfileNotice` names
+  the profile responsible and offers the drawer. Doing that also exposed the same
+  contrast bug the app labels had — unselected `FilterChip`s default to a
+  transparent container, putting their text straight onto the wallpaper — so the
+  chips now carry the frosted backing the search pill already used.

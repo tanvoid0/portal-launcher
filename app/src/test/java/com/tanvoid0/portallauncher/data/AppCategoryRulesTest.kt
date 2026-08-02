@@ -23,6 +23,30 @@ class AppCategoryRulesTest {
     }
 
     @Test
+    fun `wellness and driving keywords win over the broader lists below them`() {
+        assertEquals(AppCategory.Wellness, AppCategoryRules.categoryFor("com.google.android.apps.fitness"))
+        assertEquals(AppCategory.Wellness, AppCategoryRules.categoryFor("com.calm.android"))
+        assertEquals(AppCategory.Driving, AppCategoryRules.categoryFor("com.google.android.apps.maps"))
+        assertEquals(AppCategory.Driving, AppCategoryRules.categoryFor("com.waze"))
+        // Android Auto: the package says neither "auto" nor "car".
+        assertEquals(
+            AppCategory.Driving,
+            AppCategoryRules.categoryFor("com.google.android.projection.gearhead")
+        )
+    }
+
+    @Test
+    fun `adding the wellness and driving rules did not re-file anything above them`() {
+        // These four are the packages the earlier rules already claimed. The new
+        // rules sit first in the list, so this is the check that they did not start
+        // stealing matches.
+        assertEquals(AppCategory.Study, AppCategoryRules.categoryFor("com.google.android.apps.docs"))
+        assertEquals(AppCategory.Productivity, AppCategoryRules.categoryFor("com.microsoft.office.outlook"))
+        assertEquals(AppCategory.Social, AppCategoryRules.categoryFor("com.discord"))
+        assertEquals(AppCategory.Gaming, AppCategoryRules.categoryFor("com.epicgames.fortnite"))
+    }
+
+    @Test
     fun `unknown package falls back to Other`() {
         assertEquals(AppCategory.Other, AppCategoryRules.categoryFor("com.example.something"))
     }

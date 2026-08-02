@@ -14,6 +14,7 @@ import com.tanvoid0.portallauncher.data.AppCategorizer
 import com.tanvoid0.portallauncher.data.AppVisibilityConfig
 import com.tanvoid0.portallauncher.data.LaunchableApp
 import com.tanvoid0.portallauncher.data.ProfileEntity
+import com.tanvoid0.portallauncher.data.resolveActiveProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,7 +30,16 @@ import kotlinx.coroutines.withContext
 data class LauncherUiState(
     val activeProfile: ProfileEntity? = null,
     val profiles: List<ProfileEntity> = emptyList(),
-    val apps: List<LaunchableApp> = emptyList()
+    /**
+     * Every launchable app, whatever the profile says. The dock and the drawer read
+     * this: a profile decides what the home screen leads with, it must never be able
+     * to put the dialler out of reach or leave the user with no way to open an app
+     * it filtered out. The spec says the same thing — hidden from the main view,
+     * still accessible.
+     */
+    val allApps: List<LaunchableApp> = emptyList(),
+    /** [allApps] narrowed to the active profile's primary categories. */
+    val homeApps: List<LaunchableApp> = emptyList()
 )
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -47,25 +57,37 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val aiCategories = app.database.aiCategoryDao().observeAll()
         .map { rows -> rows.associate { it.packageName to AppCategory.fromId(it.categoryId) } }
 
+    /**
+     * The profile in effect, which is not simply the stored id — see
+     * [resolveActiveProfile]. Everything downstream keys off *this* rather than the
+     * preference, so the profile shown as active and the config being applied can
+     * never disagree; keying the config off the raw id meant a dangling preference
+     * silently applied no filter while the UI showed the default profile selected.
+     */
+    private val activeProfileFlow = combine(
+        preferencesRepository.activeProfileId,
+        profileRepository.getAllProfiles()
+    ) { activeId, profiles -> resolveActiveProfile(profiles, activeId) }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     private val visibilityConfigFlow =
-        preferencesRepository.activeProfileId.flatMapLatest { profileId ->
-            if (profileId != null) profileRepository.getVisibilityConfigForProfile(profileId)
+        activeProfileFlow.flatMapLatest { profile ->
+            if (profile != null) profileRepository.getVisibilityConfigForProfile(profile.id)
             else flowOf(null)
         }
 
     val uiState: StateFlow<LauncherUiState> = combine(
-        preferencesRepository.activeProfileId,
+        activeProfileFlow,
         profileRepository.getAllProfiles(),
         visibilityConfigFlow,
         appRepository.apps,
         aiCategories
-    ) { activeId, profiles, visibilityConfig, apps, aiCategories ->
-        val active = activeId?.let { id -> profiles.find { it.id == id } }
+    ) { active, profiles, visibilityConfig, apps, aiCategories ->
         LauncherUiState(
             activeProfile = active,
             profiles = profiles,
-            apps = filterAppsByProfile(apps, active, visibilityConfig, aiCategories)
+            allApps = apps,
+            homeApps = filterAppsByProfile(apps, active, visibilityConfig, aiCategories)
         )
     }.stateIn(
         scope = viewModelScope,
