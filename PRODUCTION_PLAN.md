@@ -947,3 +947,15 @@ Design decisions that were not mechanical:
 
 Still manual: an actual translation (`values-xx/`), and the on-device
 `debug.force_rtl` sweep.
+
+### And the §8 accessibility question, answered
+
+`SemanticsTest` (instrumented, Compose `ui-test-junit4`) asserts against the
+**merged** semantics tree — the one TalkBack consumes and `uiautomator dump`
+cannot show. It pins the four claims the kit's comments were making on faith:
+a `PortalRow` without `onClick` exposes no click action; one with `onClick` is
+a single merged node carrying both texts and the click; a `SelectableRow` is
+one radio-role target with the inner RadioButton contributing no second one;
+and `clickableCell` merges icon and label into one button. The monorepo README
+entry for this app was also brought up to date — it still said "early
+scaffold, no functional logic yet".
