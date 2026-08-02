@@ -7,6 +7,8 @@ import com.tanvoid0.portallauncher.automation.ProfileScheduler
 import com.tanvoid0.portallauncher.data.ActiveProfileSource
 import com.tanvoid0.portallauncher.data.AppDatabase
 import com.tanvoid0.portallauncher.data.AppRepository
+import com.tanvoid0.portallauncher.data.BackupRepository
+import com.tanvoid0.portallauncher.data.CrashRecorder
 import com.tanvoid0.portallauncher.data.IconCache
 import com.tanvoid0.portallauncher.data.PreferencesRepository
 import com.tanvoid0.portallauncher.data.ProfileRepository
@@ -40,6 +42,16 @@ class PortalLauncherApplication : Application() {
         ActiveProfileSource(profileRepository, preferencesRepository)
     }
 
+    val backupRepository: BackupRepository by lazy {
+        BackupRepository(
+            profileDao = database.profileDao(),
+            automationConfigDao = database.automationConfigDao(),
+            homeItemDao = database.homeItemDao(),
+            appOverrideDao = database.appOverrideDao(),
+            preferencesRepository = preferencesRepository
+        )
+    }
+
     /**
      * Optional. Constructed lazily and never touched on the start-up path, so a
      * device with no AICore support pays nothing for its existence.
@@ -66,6 +78,9 @@ class PortalLauncherApplication : Application() {
      */
     override fun onCreate() {
         super.onCreate()
+        // First thing, so a crash anywhere after this point is recorded. A launcher that
+        // dies leaves the user with no home screen and nothing to report.
+        CrashRecorder.install(this)
         appScope.launch {
             if (!preferencesRepository.builtInProfilesSeeded.first()) {
                 profileRepository.seedBuiltInProfiles()

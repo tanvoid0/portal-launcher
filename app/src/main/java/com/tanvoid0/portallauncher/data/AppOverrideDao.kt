@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.Serializable
 
 /**
  * What the user changed about one app: hidden it, renamed it, or both.
@@ -22,6 +23,9 @@ import kotlinx.coroutines.flow.Flow
     tableName = "app_override",
     primaryKeys = ["packageName", "activityName", "userSerial"]
 )
+// Serializable so it goes straight into a backup: the row *is* the thing worth keeping,
+// and a parallel DTO would be two shapes to keep in step for no gain.
+@Serializable
 data class AppOverrideEntity(
     val packageName: String,
     val activityName: String,

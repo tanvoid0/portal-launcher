@@ -13,6 +13,25 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+/**
+ * versionCode from the commit count, versionName from the build script.
+ *
+ * A hand-edited versionCode is the one number that must never repeat or go backwards,
+ * and Play rejects a bundle that gets it wrong — so it is derived rather than typed.
+ * Falls back to 1 outside a git checkout (a source archive, a shallow CI clone) so the
+ * build still works; only the release job needs the real number, and it fetches
+ * full history.
+ */
+val gitCommitCount: Int by lazy {
+    runCatching {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        process.inputStream.bufferedReader().readText().trim().toInt()
+    }.getOrDefault(1)
+}
+
 android {
     namespace = "com.tanvoid0.portallauncher"
     compileSdk = 36
@@ -25,9 +44,28 @@ android {
         applicationId = "com.tanvoid0.portallauncher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = gitCommitCount
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    /**
+     * Release signing from the environment, never from a file in the repository.
+     *
+     * Absent credentials produce an *unsigned* release build rather than a failure, so
+     * `assembleRelease` still exercises R8 on a developer machine and in PR CI. Only the
+     * tagged release job has the secrets, and it is the only place that needs them.
+     */
+    val keystoreFile = System.getenv("PORTAL_KEYSTORE_FILE")?.let(::file)?.takeIf { it.exists() }
+    signingConfigs {
+        if (keystoreFile != null) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = System.getenv("PORTAL_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("PORTAL_KEY_ALIAS")
+                keyPassword = System.getenv("PORTAL_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -44,7 +82,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // signingConfig: see PRODUCTION_PLAN.md phase 9.
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

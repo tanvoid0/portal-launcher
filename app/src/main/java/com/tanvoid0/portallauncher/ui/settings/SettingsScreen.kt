@@ -10,9 +10,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -33,6 +39,26 @@ fun SettingsScreen(
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
     val aiEnabled by viewModel.aiEnabled.collectAsStateWithLifecycle()
     val working by viewModel.working.collectAsStateWithLifecycle()
+    val backupMessage by viewModel.backupMessage.collectAsStateWithLifecycle()
+
+    // The system document picker, so Portal never decides where a file goes and needs no
+    // storage permission at all.
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let(viewModel::exportBackup) }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let(viewModel::importBackup) }
+
+    backupMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = viewModel::clearBackupMessage,
+            confirmButton = {
+                TextButton(onClick = viewModel::clearBackupMessage) { Text("OK") }
+            },
+            text = { Text(message) }
+        )
+    }
 
     PortalScreen(title = "Settings", modifier = modifier) {
         Column(
@@ -77,9 +103,17 @@ fun SettingsScreen(
             }
             PortalGroup(title = "Portal") {
                 PortalRow(
-                    title = "Backup & restore",
-                    subtitle = "Export or restore profiles and preferences",
-                    icon = Icons.Default.Backup
+                    title = "Back up",
+                    subtitle = "Save profiles, layouts and app overrides to a file",
+                    icon = Icons.Default.Backup,
+                    onClick = { exportLauncher.launch("portal-launcher-backup.json") }
+                )
+                PortalRow(
+                    title = "Restore",
+                    // Says what it does before they pick the file, not after.
+                    subtitle = "Replaces your current profiles with a backup file",
+                    icon = Icons.Default.Restore,
+                    onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
                 )
                 PortalRow(
                     title = "Scheduler",

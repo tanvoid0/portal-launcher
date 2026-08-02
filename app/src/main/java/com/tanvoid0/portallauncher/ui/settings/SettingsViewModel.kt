@@ -1,12 +1,17 @@
 package com.tanvoid0.portallauncher.ui.settings
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.ai.AiStatus
 import com.tanvoid0.portallauncher.data.AiCategoryEntity
 import com.tanvoid0.portallauncher.data.AppCategorizer
+import com.tanvoid0.portallauncher.data.BackupCodec
+import com.tanvoid0.portallauncher.data.RestoreResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +40,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val _working = MutableStateFlow(false)
     val working: StateFlow<Boolean> = _working.asStateFlow()
+
+    /** Last backup or restore outcome, for the message the user sees. Cleared on read. */
+    private val _backupMessage = MutableStateFlow<String?>(null)
+    val backupMessage: StateFlow<String?> = _backupMessage.asStateFlow()
+
+    fun clearBackupMessage() { _backupMessage.value = null }
 
     val aiEnabled: StateFlow<Boolean> = preferences.aiCategoriesEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -65,6 +76,66 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _aiStatus.value = categorizer.download()
             }
             sweep()
+        }
+    }
+
+    /**
+     * Writes the whole configuration to [uri], which the user chose in the system
+     * document picker — so this app never decides where a file lands.
+     */
+    fun exportBackup(uri: Uri) {
+        viewModelScope.launch {
+            val result = runCatching {
+                val text = BackupCodec.encode(app.backupRepository.export())
+                withContext(Dispatchers.IO) {
+                    app.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(text.toByteArray())
+                    } ?: error("could not open the chosen file for writing")
+                }
+            }
+            _backupMessage.value = result.fold(
+                onSuccess = { "Backup saved." },
+                // The reason, not just "failed": a picker can hand back a read-only
+                // location or a URI whose permission has already lapsed.
+                onFailure = { "Backup failed: ${it.message ?: "unknown error"}" }
+            )
+        }
+    }
+
+    /**
+     * Replaces the configuration with the contents of [uri].
+     *
+     * The file came from a document picker, so it can be anything on the device. Every
+     * failure mode gets its own message — a launcher that dies on a wrong pick cannot be
+     * recovered from, because it *is* the recovery surface.
+     */
+    fun importBackup(uri: Uri) {
+        viewModelScope.launch {
+            val text = runCatching {
+                withContext(Dispatchers.IO) {
+                    app.contentResolver.openInputStream(uri)?.use {
+                        it.readBytes().decodeToString()
+                    } ?: error("could not open the chosen file")
+                }
+            }.getOrElse {
+                _backupMessage.value = "Restore failed: ${it.message ?: "could not read the file"}"
+                return@launch
+            }
+
+            val backup = BackupCodec.decode(text).getOrElse {
+                _backupMessage.value = "That does not look like a Portal backup."
+                return@launch
+            }
+
+            _backupMessage.value = when (val result = app.backupRepository.restore(backup)) {
+                is RestoreResult.Success ->
+                    "Restored ${result.profileCount} profiles."
+                is RestoreResult.TooNew ->
+                    "That backup was made by a newer version of Portal " +
+                        "(format ${result.fileVersion}, this build reads ${result.supported})."
+                RestoreResult.NotAPortalBackup ->
+                    "That does not look like a Portal backup."
+            }
         }
     }
 
