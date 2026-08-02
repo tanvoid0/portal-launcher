@@ -642,3 +642,88 @@ than being half-built here.
 `LaunchableApp` holds a real `UserHandle`, which has no constructor available off
 device. That is a better trade than making the field nullable or adding
 Robolectric for one type.
+
+---
+
+## 11. Phases 4 to 9: what landed, and what is genuinely left
+
+Done 2026-08-02, in one session. Gate at every commit: `assembleDebug`,
+`assembleRelease`, `lintDebug` (warningsAsErrors, no baseline),
+`testDebugUnitTest` (53 tests) and `connectedDebugAndroidTest` (12 tests on a
+Pixel 9a emulator). Release AAB builds at 5.38 MB; the release APK is 2.82 MB.
+
+### Landed
+
+**Phase 4 — drawer and search.** `matchScore` ranks in tiers (exact, prefix,
+word-start, initials, contains, subsequence), matches both the rename and the
+app's own name, and ignores case and accents. Verified on device: "ca" gives
+Camera then Calendar then Contacts. The drawer *is* the search surface, grouped
+into category sections when idle and flat when searching. A manual category
+override (schema v5) outranks every automatic source — the escape hatch for the
+empty-Study-profile problem §9 found.
+
+**Phase 5 — profile engine.** `Automation` with an availability result that
+carries the *reason*, an `AutomationRegistry` list rather than a `when` over
+profile types, and a `ProfileEngine` that reverts what the outgoing profile had
+on. `ActiveProfileSource` is now the single answer to "which profile is in
+effect", shared by the UI, engine, listener, scheduler and tile. Plus a
+`ProfileScheduler` (one alarm, re-armed on fire/boot/clock-change) and a Quick
+Settings tile that cycles profiles.
+
+**Phase 6 — two of the automations.** Greyscale of Portal's own surfaces, and
+per-profile notification rules that snooze by default and never touch ongoing or
+foreground-service notifications.
+
+**Phase 7 — backup and restore**, through the system document picker, replacing
+rather than merging, with a message for every failure mode.
+
+**Phase 8 — CI and crash recording.** GitHub Actions runs lint, unit tests, both
+build types and the instrumented tests; tags build a signed bundle. Crashes are
+recorded locally.
+
+**Phase 9 — the code side.** Signing from environment variables, `versionCode`
+derived from the commit count, AAB verified to build.
+
+### Three bugs the tests and lint caught, worth remembering
+
+- `nextBoundaryMinutes` treated a boundary at exactly the current minute as zero
+  minutes away, so a 09:00–17:00 slot would switch on at nine and **never switch
+  off** — the alarm went to 09:00 tomorrow.
+- `ProfileScheduleReceiver` acted on any intent that reached it while declaring
+  filters for protected broadcasts. Lint's `UnsafeProtectedBroadcastReceiver`
+  found it.
+- Because every backup field had a default, `{"volume":11}` decoded as a valid
+  empty backup — restoring another app's settings file would have **silently
+  deleted every profile**. The version field is now `@Required`.
+
+### Not done — and none of it is hidden
+
+**The app blocker.** The largest remaining feature: a foreground service,
+usage-access polling, an overlay window, and its own Play declarations. §1.2 has
+the mechanism decision already made (usage access, not AccessibilityService).
+
+**No UI for automations or schedules.** This is the biggest gap and it is not
+obvious from the outside: the engine applies whatever a profile has enabled, the
+scheduler honours whatever slots are stored, and `ProfileEditScreen` still only
+edits a name and a type. So greyscale, notification rules and schedules are all
+*functional and unreachable* — a profile's `enabledAutomationIds` and its configs
+can only be set from a seeded default or a restored backup. **Build this next; it
+is what makes phases 5 and 6 visible at all.**
+
+**Localization (D17).** Every string is still hardcoded English. Mechanical but
+large, and `supportsRtl="true"` remains a claim rather than a fact.
+
+**Crash reporting service.** Crashlytics or Sentry both need an account and a key
+that cannot be committed. `CrashRecorder` covers the local half.
+
+**Baseline profile.** Needs a benchmark module and a device to generate on, and
+without a measurement there is nothing to show for it. Cold start is *the*
+launcher metric, so this is worth real time rather than a guess.
+
+**Compose UI tests**, including the accessibility question §8 left explicitly
+unresolved: `uiautomator` cannot see Compose's merged semantics tree, so what
+TalkBack actually announces is still unverified.
+
+**Everything in Play Console.** The keystore, the privacy policy, the data safety
+form, the notification-access disclosure, the store listing, staged rollout.
+These need an account and legal text; the checklist is §7 phase 9.
