@@ -27,7 +27,16 @@ data class AppOverrideEntity(
     val activityName: String,
     val userSerial: Long,
     val hidden: Boolean = false,
-    val customLabel: String? = null
+    val customLabel: String? = null,
+    /**
+     * [AppCategory.id] the user assigned, overriding every automatic source.
+     *
+     * The manual escape hatch for the categoriser being wrong, which it will be: the
+     * Study profile is empty on a stock device because Calendar and Drive both declare
+     * `CATEGORY_PRODUCTIVITY`. Null means "keep deciding automatically", which is not
+     * the same as any particular category.
+     */
+    val categoryId: String? = null
 )
 
 @Dao
@@ -42,7 +51,14 @@ interface AppOverrideDao {
     /**
      * Drops rows that no longer say anything, so an app the user hid and then unhid
      * stops occupying a row and cannot resurface as a stale override later.
+     *
+     * Every nullable field has to appear here. Miss one and that column's value is
+     * silently deleted the next time an unrelated override is cleared.
      */
-    @Query("DELETE FROM app_override WHERE hidden = 0 AND (customLabel IS NULL OR customLabel = '')")
+    @Query(
+        "DELETE FROM app_override WHERE hidden = 0 " +
+            "AND (customLabel IS NULL OR customLabel = '') " +
+            "AND categoryId IS NULL"
+    )
     suspend fun pruneEmpty()
 }

@@ -42,7 +42,9 @@ data class LaunchableApp(
     /** True for apps shipped with the system image; those cannot be uninstalled. */
     val isSystemApp: Boolean = false,
     /** User-chosen name, when they renamed it. [displayLabel] is what UI should show. */
-    val customLabel: String? = null
+    val customLabel: String? = null,
+    /** Category the user assigned by hand. Outranks every automatic source. */
+    val categoryOverride: AppCategory? = null
 ) {
     /** Identity across processes and reboots. Used for list keys and for storage. */
     val key: String get() = "$packageName/$activityName/$userSerial"

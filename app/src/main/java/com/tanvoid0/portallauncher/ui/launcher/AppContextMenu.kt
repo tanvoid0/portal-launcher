@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -33,9 +34,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.selection.selectableGroup
+import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.LaunchableApp
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalRow
+import com.tanvoid0.portallauncher.ui.kit.SelectableRow
 import com.tanvoid0.portallauncher.ui.kit.Spacing
 
 /**
@@ -56,7 +60,9 @@ fun AppContextMenu(
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState()
     var renaming by remember { mutableStateOf(false) }
+    var choosingCategory by remember { mutableStateOf(false) }
     val isPinned = remember(app.key) { viewModel.isPinnedToHome(app) }
+    val resolvedCategory = viewModel.categoryOf(app)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -95,6 +101,19 @@ fun AppContextMenu(
                 return@Column
             }
 
+            if (choosingCategory) {
+                CategoryPicker(
+                    current = app.categoryOverride,
+                    automatic = resolvedCategory,
+                    onPick = { picked ->
+                        viewModel.setCategory(app, picked)
+                        onDismiss()
+                    },
+                    onCancel = { choosingCategory = false }
+                )
+                return@Column
+            }
+
             PortalGroup {
                 PortalRow(
                     icon = Icons.Default.PushPin,
@@ -108,6 +127,16 @@ fun AppContextMenu(
                     icon = Icons.Default.Edit,
                     title = "Rename",
                     onClick = { renaming = true }
+                )
+                PortalRow(
+                    icon = Icons.Default.Category,
+                    title = "Category",
+                    // Says what is in effect *and* where it came from, so the user can
+                    // tell an automatic guess from their own choice before changing it.
+                    subtitle = app.categoryOverride
+                        ?.let { "${it.displayName()} — set by you" }
+                        ?: "${resolvedCategory.displayName()} — chosen automatically",
+                    onClick = { choosingCategory = true }
                 )
                 PortalRow(
                     icon = Icons.Default.VisibilityOff,
@@ -173,6 +202,45 @@ private fun RenameRow(
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Button(onClick = { onConfirm(text) }) { Text("Save") }
             TextButton(onClick = onCancel) { Text("Cancel") }
+        }
+    }
+}
+
+/**
+ * Reassigns an app's category by hand.
+ *
+ * "Choose automatically" is a first-class option rather than a missing selection: the
+ * user needs a way back to the automatic result, and null is not the same as any
+ * particular category.
+ */
+@Composable
+private fun CategoryPicker(
+    current: AppCategory?,
+    automatic: AppCategory,
+    onPick: (AppCategory?) -> Unit,
+    onCancel: () -> Unit
+) {
+    Column {
+        PortalGroup(modifier = Modifier.selectableGroup()) {
+            SelectableRow(
+                title = "Choose automatically",
+                subtitle = "Currently ${automatic.displayName()}",
+                selected = current == null,
+                onSelect = { onPick(null) }
+            )
+            AppCategory.entries.forEach { category ->
+                SelectableRow(
+                    title = category.displayName(),
+                    selected = current == category,
+                    onSelect = { onPick(category) }
+                )
+            }
+        }
+        TextButton(
+            onClick = onCancel,
+            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.sm)
+        ) {
+            Text("Cancel")
         }
     }
 }

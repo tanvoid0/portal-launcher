@@ -43,9 +43,13 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             PortalGroup(title = "Apps") {
+                // No onClick, so it exposes no click action to a screen reader either.
+                // Changing a category lives on the app itself rather than behind a
+                // settings screen listing every app twice; this row is here so the
+                // feature is findable, not so it does something.
                 PortalRow(
                     title = "App categories",
-                    subtitle = "Customize how apps are grouped",
+                    subtitle = "Long-press any app and choose Category to move it",
                     icon = Icons.Default.Category
                 )
                 PortalRow(

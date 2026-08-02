@@ -22,7 +22,10 @@ import android.content.pm.ApplicationInfo
 object AppCategorizer {
 
     fun categoryFor(app: LaunchableApp, aiCategories: Map<String, AppCategory>): AppCategory =
-        categoryFor(app.systemCategory, app.packageName, aiCategories)
+        // A user override outranks every automatic source, including the app's own
+        // declared category. It is the escape hatch for the categoriser being wrong,
+        // so nothing may quietly win against it.
+        app.categoryOverride ?: categoryFor(app.systemCategory, app.packageName, aiCategories)
 
     /**
      * The resolution itself, free of [LaunchableApp] so it stays a plain function of

@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         HomeItemEntity::class,
         AppOverrideEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -114,5 +114,19 @@ object AppDatabaseMigrations {
         }
     }
 
-    val all: Array<Migration> get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+    /**
+     * Adds the manual category override.
+     *
+     * `ALTER TABLE ADD COLUMN` rather than a rebuild: the column is nullable with no
+     * default, which is the one shape SQLite can add in place, so existing overrides
+     * keep their hidden flag and rename untouched.
+     */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `app_override` ADD COLUMN `categoryId` TEXT")
+        }
+    }
+
+    val all: Array<Migration>
+        get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 }

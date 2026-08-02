@@ -104,6 +104,9 @@ fun LauncherHomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var appDrawerOpen by remember { mutableStateOf(false) }
+    // Tapping the search pill means "I want to type"; swiping up or using the dock
+    // button means "show me my apps". Only the first should raise the keyboard.
+    var drawerOpenedForSearch by remember { mutableStateOf(false) }
     var menuApp by remember { mutableStateOf<LaunchableApp?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -128,7 +131,12 @@ fun LauncherHomeScreen(
                 var travelled = 0f
                 detectVerticalDragGestures(
                     onDragStart = { travelled = 0f },
-                    onDragEnd = { if (travelled < -swipeThresholdPx) appDrawerOpen = true }
+                    onDragEnd = {
+                        if (travelled < -swipeThresholdPx) {
+                            drawerOpenedForSearch = false
+                            appDrawerOpen = true
+                        }
+                    }
                 ) { _, delta -> travelled += delta }
             }
     ) {
@@ -138,8 +146,7 @@ fun LauncherHomeScreen(
                 .windowInsetsPadding(WindowInsets.statusBars)
         ) {
             SearchPill(
-                // Phase 4 replaces this with a real query field.
-                onClick = { appDrawerOpen = true },
+                onClick = { drawerOpenedForSearch = true; appDrawerOpen = true },
                 modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.md)
             )
 
@@ -198,7 +205,7 @@ fun LauncherHomeScreen(
                     onWallpaper = true,
                     action = {
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                            Button(onClick = { appDrawerOpen = true }) { Text("Open app drawer") }
+                            Button(onClick = { drawerOpenedForSearch = false; appDrawerOpen = true }) { Text("Open app drawer") }
                             if (emptiedByUser) {
                                 // The way back from emptying the grid. Without it,
                                 // unpinning everything is a one-way door.
@@ -252,7 +259,7 @@ fun LauncherHomeScreen(
             Dock(
                 apps = dockApps,
                 viewModel = viewModel,
-                onOpenDrawer = { appDrawerOpen = true },
+                onOpenDrawer = { drawerOpenedForSearch = false; appDrawerOpen = true },
                 onLongPress = { menuApp = it }
             )
         }
@@ -264,9 +271,11 @@ fun LauncherHomeScreen(
                 dragHandle = null,
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
-                AppDrawerContent(
+                AppDrawerSheet(
                     apps = uiState.allApps,
+                    categoryByKey = uiState.categoryByKey,
                     viewModel = viewModel,
+                    autoFocusSearch = drawerOpenedForSearch,
                     onLaunch = { app ->
                         appDrawerOpen = false
                         viewModel.launch(app)
@@ -414,55 +423,6 @@ private fun Dock(
     }
 }
 
-@Composable
-private fun AppDrawerContent(
-    apps: List<LaunchableApp>,
-    viewModel: LauncherViewModel,
-    onLaunch: (LaunchableApp) -> Unit,
-    onLongPress: (LaunchableApp) -> Unit,
-    onOpenProfiles: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = Spacing.xxl)
-    ) {
-        Text(
-            "Apps",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.md)
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-        ) {
-            DrawerShortcut(Icons.Default.Person, "Profiles", onOpenProfiles)
-            DrawerShortcut(Icons.Default.Settings, "Settings", onOpenSettings)
-        }
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 80.dp),
-            contentPadding = PaddingValues(Spacing.lg),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-            modifier = Modifier.heightIn(max = 420.dp)
-        ) {
-            items(apps, key = { it.key }) { app ->
-                AppIconCell(
-                    app = app,
-                    viewModel = viewModel,
-                    onClick = { onLaunch(app) },
-                    onLongClick = { onLongPress(app) },
-                    onWallpaper = false
-                )
-            }
-        }
-    }
-}
-
 /**
  * Icon plus label, for grids.
  *
@@ -471,7 +431,7 @@ private fun AppDrawerContent(
  * screen sits on the wallpaper where a theme colour would.
  */
 @Composable
-private fun AppIconCell(
+internal fun AppIconCell(
     app: LaunchableApp,
     viewModel: LauncherViewModel,
     onClick: () -> Unit,
@@ -508,7 +468,7 @@ private fun AppIconCell(
  * cell exposes one accessibility target instead of two.
  */
 @Composable
-private fun AppIcon(
+internal fun AppIcon(
     app: LaunchableApp,
     viewModel: LauncherViewModel,
     onClick: (() -> Unit)?,
@@ -543,7 +503,7 @@ private fun AppIcon(
 
 /** Resolves the icon at real device density, off the main thread, only when composed. */
 @Composable
-private fun rememberAppIcon(
+internal fun rememberAppIcon(
     app: LaunchableApp,
     viewModel: LauncherViewModel,
     size: Dp = ICON_SIZE
@@ -555,7 +515,7 @@ private fun rememberAppIcon(
 }
 
 @Composable
-private fun DrawerShortcut(
+internal fun DrawerShortcut(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,

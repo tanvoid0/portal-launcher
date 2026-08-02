@@ -45,6 +45,11 @@ data class LauncherUiState(
     val allApps: List<LaunchableApp> = emptyList(),
     /** What the home grid shows: the user's pinned apps, or the category default. */
     val homeApps: List<LaunchableApp> = emptyList(),
+    /**
+     * Resolved category per app key. Computed once here rather than per drawer section,
+     * so the drawer never has to know what the categoriser needs as input.
+     */
+    val categoryByKey: Map<String, AppCategory> = emptyMap(),
     /** Pinned rows for the active profile, so the menu knows whether to say Pin or Unpin. */
     val pinned: List<HomeItemEntity> = emptyList(),
     /** True once the user has pinned anything, i.e. the grid is theirs and not a default. */
@@ -124,11 +129,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         appsFlow,
         layoutFlow
     ) { active, profiles, visibilityConfig, (apps, ai), (pinned, isCustomised) ->
+        val categoryByKey = apps.associate { it.key to AppCategorizer.categoryFor(it, ai) }
         val categoryFiltered = filterAppsByProfile(apps, active, visibilityConfig, ai)
         LauncherUiState(
             activeProfile = active,
             profiles = profiles,
             allApps = apps,
+            categoryByKey = categoryByKey,
             homeApps = resolveHomeApps(
                 pinned = pinned,
                 installed = apps,
@@ -164,6 +171,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         iconCache.icon(app, sizePx)
 
     fun isPinnedToHome(app: LaunchableApp): Boolean = isPinned(uiState.value.pinned, app)
+
+    /** The category in effect for [app], however it was decided. */
+    fun categoryOf(app: LaunchableApp): AppCategory =
+        uiState.value.categoryByKey[app.key] ?: AppCategory.Other
 
     /**
      * Pinning the first app converts the grid from "the category default" into the
@@ -209,9 +220,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      */
     fun setHidden(app: LaunchableApp, hidden: Boolean) {
         viewModelScope.launch {
-            appOverrideDao.upsert(
-                overrideFor(app).copy(hidden = hidden, customLabel = app.customLabel)
-            )
+            appOverrideDao.upsert(currentOverride(app).copy(hidden = hidden))
             if (hidden) {
                 uiState.value.profiles.forEach { profile ->
                     homeItemDao.remove(profile.id, app.packageName, app.activityName, app.userSerial)
@@ -221,19 +230,41 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Renames an app, or clears the rename when [label] is blank. */
-    fun rename(app: LaunchableApp, label: String) {
+    /**
+     * Assigns a category by hand, or clears the assignment when [category] is null.
+     * Outranks every automatic source — see [AppCategorizer.categoryFor].
+     */
+    fun setCategory(app: LaunchableApp, category: AppCategory?) {
         viewModelScope.launch {
-            val trimmed = label.trim().takeIf { it.isNotEmpty() && it != app.label }
-            appOverrideDao.upsert(overrideFor(app).copy(customLabel = trimmed))
+            appOverrideDao.upsert(currentOverride(app).copy(categoryId = category?.id))
             appOverrideDao.pruneEmpty()
         }
     }
 
-    private fun overrideFor(app: LaunchableApp) = AppOverrideEntity(
+    /** Renames an app, or clears the rename when [label] is blank. */
+    fun rename(app: LaunchableApp, label: String) {
+        viewModelScope.launch {
+            val trimmed = label.trim().takeIf { it.isNotEmpty() && it != app.label }
+            appOverrideDao.upsert(currentOverride(app).copy(customLabel = trimmed))
+            appOverrideDao.pruneEmpty()
+        }
+    }
+
+    /**
+     * The app's override row as it stands, so a `copy()` changing one field does not
+     * clear the others. Building a blank row instead meant renaming an app silently
+     * dropped its category override, and vice versa.
+     *
+     * `hidden` is false because every app reachable from the UI has already passed the
+     * hidden filter; [setHidden] is the only caller that sets it true.
+     */
+    private fun currentOverride(app: LaunchableApp) = AppOverrideEntity(
         packageName = app.packageName,
         activityName = app.activityName,
-        userSerial = app.userSerial
+        userSerial = app.userSerial,
+        hidden = false,
+        customLabel = app.customLabel,
+        categoryId = app.categoryOverride?.id
     )
 
     private fun filterAppsByProfile(

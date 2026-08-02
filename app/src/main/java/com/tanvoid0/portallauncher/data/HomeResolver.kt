@@ -19,7 +19,10 @@ fun applyOverrides(
 ): List<LaunchableApp> = apps.mapNotNull { app ->
     val override = overrides[app.key] ?: return@mapNotNull app
     if (override.hidden) return@mapNotNull null
-    app.copy(customLabel = override.customLabel)
+    app.copy(
+        customLabel = override.customLabel,
+        categoryOverride = override.categoryId?.let { AppCategory.fromId(it) }
+    )
 }
 
 /**

@@ -108,6 +108,32 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate4To5_addsCategoryOverrideAndKeepsHidesAndRenames() {
+        helper.createDatabase(TEST_DB, 4).use { db ->
+            db.execSQL(
+                "INSERT INTO app_override (packageName, activityName, userSerial, hidden, customLabel) " +
+                    "VALUES ('com.example.mail', 'com.example.mail.Main', 0, 1, 'Inbox')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            5,
+            true,
+            AppDatabaseMigrations.MIGRATION_4_5
+        )
+
+        // ALTER TABLE ADD COLUMN must not disturb the existing rows: a hide and a
+        // rename the user already made have to survive the added column.
+        db.query("SELECT hidden, customLabel, categoryId FROM app_override").use { c ->
+            assertTrue("override row was lost by the migration", c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+            assertEquals("Inbox", c.getString(1))
+            assertTrue("categoryId should default to null", c.isNull(2))
+        }
+    }
+
+    @Test
     fun deletingAProfileTakesItsHomeLayoutWithIt() {
         helper.createDatabase(TEST_DB, 2).use { db ->
             db.execSQL(
