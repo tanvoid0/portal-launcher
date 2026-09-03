@@ -12,6 +12,9 @@ object AutomationIds {
     const val NOTIFICATION_FILTER = "notification_filter"
     const val SCHEDULER = "scheduler"
     const val QUICK_SWITCH = "quick_switch"
+    const val DISPLAY_COMFORT = "display_comfort"
+    const val DND = "dnd"
+    const val POWER_SAVER = "power_saver"
 }
 
 @Entity(
@@ -54,10 +57,21 @@ data class AppVisibilityConfig(
     val hiddenCategoryIds: List<String> = emptyList()
 )
 
+/** Blocklist covers what it names; AllowlistOnly inverts that — see [BlockerPolicy]. */
+@Serializable
+enum class BlockerMode { Blocklist, AllowlistOnly }
+
 @Serializable
 data class AppBlockerConfig(
+    /**
+     * Under [BlockerMode.Blocklist] (the default), these are the packages paused.
+     * Under [BlockerMode.AllowlistOnly] the same field flips meaning to the packages
+     * left *un*paused — everything else is. One field rather than two, so a config
+     * never has to say which list is the live one.
+     */
     val blockedPackageNames: List<String> = emptyList(),
-    val useOverlay: Boolean = true
+    val useOverlay: Boolean = true,
+    val mode: BlockerMode = BlockerMode.Blocklist
 )
 
 @Serializable
@@ -87,4 +101,38 @@ data class ScheduleSlot(
 @Serializable
 data class SchedulerConfig(
     val slots: List<ScheduleSlot> = emptyList()
+)
+
+@Serializable
+enum class BrightnessMode { Auto, Manual }
+
+@Serializable
+enum class RefreshRateMode { Auto, Min, Max, Custom }
+
+@Serializable
+data class DisplayComfortConfig(
+    val brightnessMode: BrightnessMode = BrightnessMode.Auto,
+    val brightnessPercent: Int = 50,
+    val refreshRateMode: RefreshRateMode = RefreshRateMode.Auto,
+    val refreshRateHz: Float = 60f
+)
+
+@Serializable
+enum class DndFilterLevel { PriorityOnly, AlarmsOnly, TotalSilence }
+
+@Serializable
+data class DndConfig(val filterLevel: DndFilterLevel = DndFilterLevel.PriorityOnly)
+
+@Serializable
+enum class PowerSaverIntensity { Standard, Ultra }
+
+@Serializable
+data class PowerSaverConfig(
+    val intensity: PowerSaverIntensity = PowerSaverIntensity.Standard,
+    /**
+     * Packages [com.tanvoid0.portallauncher.automation.BackgroundAppTrimmer] leaves
+     * running. Not consulted by Ultra's app allowlist — that runs through
+     * [AppBlockerConfig.mode] on its own config row.
+     */
+    val excludedPackages: Set<String> = emptySet()
 )

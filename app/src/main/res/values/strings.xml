@@ -61,6 +61,12 @@
     <string name="profile_focus">Focus</string>
     <string name="profile_wellness">Wellness</string>
     <string name="profile_driving">Driving</string>
+    <string name="profile_streaming">Streaming</string>
+    <string name="profile_outdoors">Outdoors</string>
+    <string name="profile_performance">Performance</string>
+    <string name="profile_power_saver">Power Saver</string>
+    <string name="profile_ultra_saver">Ultra Saver</string>
+    <string name="profile_distraction_free">Distraction-Free</string>
 
     <!-- App context menu -->
     <string name="remove_from_home">Remove from home</string>
@@ -124,6 +130,22 @@
     <string name="dismiss_instead">Dismiss instead of snoozing</string>
     <string name="dismiss_instead_warning">Snoozed notifications come back when the profile changes. Dismissed ones are gone for good.</string>
     <string name="hold_back_from">Hold back notifications from</string>
+    <string name="display_brightness">Brightness</string>
+    <string name="display_brightness_auto">Automatic</string>
+    <string name="display_brightness_manual">Manual</string>
+    <string name="display_refresh_rate">Refresh rate</string>
+    <string name="refresh_rate_auto">Automatic</string>
+    <string name="refresh_rate_min">Lowest</string>
+    <string name="refresh_rate_max">Highest</string>
+    <string name="refresh_rate_custom">Custom</string>
+    <string name="dnd_filter_level">While active</string>
+    <string name="dnd_priority_only">Priority only</string>
+    <string name="dnd_alarms_only">Alarms only</string>
+    <string name="dnd_total_silence">Total silence</string>
+    <string name="power_saver_standard">Standard</string>
+    <string name="power_saver_ultra">Ultra</string>
+    <string name="apps_to_keep_running">Apps to keep running</string>
+    <string name="apps_to_keep_running_empty">None chosen — pick apps Power Saver should not close</string>
 
     <!-- Automations -->
     <string name="greyscale_title">Greyscale</string>
@@ -135,6 +157,14 @@
     <string name="blocker_summary">Shows a pause screen over apps this profile blocks, with a way through when you mean it.</string>
     <string name="blocker_needs_usage">Portal needs usage access to notice which app comes to the front. It reads app names only, on the device — nothing is stored or sent anywhere.</string>
     <string name="blocker_needs_overlay">Portal needs to display over other apps to put the pause screen on top of a blocked app.</string>
+    <string name="display_comfort_title">Display comfort</string>
+    <string name="display_comfort_summary">Sets brightness and refresh rate while this profile is active.</string>
+    <string name="display_comfort_needs_write_settings">Portal needs permission to modify system settings to change brightness and refresh rate.</string>
+    <string name="dnd_title">Do Not Disturb</string>
+    <string name="dnd_summary">Turns on the system\'s own Do Not Disturb while this profile is active.</string>
+    <string name="dnd_needs_access">Portal needs Do Not Disturb access to turn it on and off with your profile.</string>
+    <string name="power_saver_title">Power Saver</string>
+    <string name="power_saver_summary">Closes background apps and dims the display. Ultra also blocks everything but a few essentials.</string>
 
     <!-- Blocker overlay and notification -->
     <string name="blocker_paused_title">Paused by Portal</string>
@@ -155,6 +185,7 @@
     <string name="slot_deleted_profile">Deleted profile — this slot does nothing</string>
     <string name="remove_slot">Remove slot</string>
     <string name="new_slot">New slot</string>
+    <string name="edit_slot">Edit slot</string>
     <string name="slot_from">From %1$s</string>
     <string name="slot_to">To %1$s</string>
     <string name="ends_next_day">Ends the next day</string>
@@ -175,6 +206,11 @@
     <string name="ai_downloadable">Available after a one-time model download.</string>
     <string name="ai_on">On. Runs on-device; apps and categories never leave the phone.</string>
     <string name="ai_off">Off. Apps the built-in rules can\'t place stay in Other.</string>
+    <string name="ai_assistant_title">AI Assistant</string>
+    <string name="ai_assistant_unavailable">Not supported on this device.</string>
+    <string name="ai_assistant_off">Off. Turn on to chat with an on-device assistant that can switch profiles and change display, Do Not Disturb and schedule settings.</string>
+    <string name="ai_assistant_needs_download">On, but needs a one-time model download.</string>
+    <string name="ai_assistant_on">On. Tap to chat.</string>
     <string name="settings_backup">Backup</string>
     <string name="back_up">Back up</string>
     <string name="back_up_subtitle">Save profiles, layouts and app overrides to a file</string>
@@ -182,6 +218,13 @@
     <string name="restore_subtitle">Replaces your current profiles with a backup file</string>
     <string name="settings_schedule">Schedule</string>
     <string name="schedule_row_subtitle">Switch profiles by time of day</string>
+
+    <!-- AI Assistant sheet -->
+    <string name="assistant_empty_title">Ask me anything</string>
+    <string name="assistant_empty_body">I can switch profiles, adjust display and Do Not Disturb, and manage your schedule.</string>
+    <string name="assistant_input_hint">Message</string>
+    <string name="send">Send</string>
+    <string name="assistant_confirm_title">Allow this action?</string>
 
     <!-- Drawer options sheet -->
     <string name="drawer_options">Drawer options</string>
@@ -203,6 +246,8 @@
         <item quantity="other">Restored %d profiles.</item>
     </plurals>
     <string name="restore_too_new">That backup was made by a newer version of Portal (format %1$d, this build reads %2$d).</string>
+    <string name="restore_confirm_title">Replace all profiles?</string>
+    <string name="restore_confirm_body">This replaces every profile on this device with the backup file. It cannot be undone.</string>
 
     <!-- Hidden apps -->
     <string name="hidden_apps_subtitle">Hidden apps stay installed and searchable from the system, they just do not appear in Portal.</string>

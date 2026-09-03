@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -28,8 +29,10 @@ import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.automation.greyscale
 import com.tanvoid0.portallauncher.data.AutomationIds
+import com.tanvoid0.portallauncher.data.ColorSource
 import com.tanvoid0.portallauncher.data.ConfigCodec
 import com.tanvoid0.portallauncher.data.GreyscaleConfig
+import com.tanvoid0.portallauncher.data.ThemeMode
 import com.tanvoid0.portallauncher.ui.adaptive.AdaptiveLauncherScaffold
 import com.tanvoid0.portallauncher.ui.adaptive.NavItem
 import com.tanvoid0.portallauncher.ui.launcher.LauncherHomeScreen
@@ -68,14 +71,32 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         widgetPlacement = ActivityWidgetPlacement(this, widgetHost)
         setContent {
-            PortalLauncherTheme {
+            val preferences = remember {
+                (application as PortalLauncherApplication).preferencesRepository
+            }
+            // Same produceState-once pattern as setupComplete below. Defaults (System,
+            // Portal) match today's look, so an existing install sees no change until
+            // it opts in through the (not yet built) Appearance screen.
+            val themeMode by produceState(ThemeMode.SYSTEM) {
+                value = preferences.themeMode.first()
+            }
+            val colorSource by produceState(ColorSource.PORTAL) {
+                value = preferences.colorSource.first()
+            }
+            val systemDarkTheme = isSystemInDarkTheme()
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> systemDarkTheme
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            PortalLauncherTheme(
+                darkTheme = darkTheme,
+                dynamicColor = colorSource == ColorSource.WALLPAPER
+            ) {
                 // Setup is shown until it has been finished or skipped, and that fact
                 // is persisted — the old per-process check meant a cold start, which
                 // for the home app happens whenever the system reclaims us, put the
                 // user back on the first-run screen.
-                val preferences = remember {
-                    (application as PortalLauncherApplication).preferencesRepository
-                }
                 val setupComplete by produceState<Boolean?>(null) {
                     value = preferences.setupComplete.first()
                 }

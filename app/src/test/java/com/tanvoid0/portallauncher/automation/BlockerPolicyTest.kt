@@ -1,5 +1,6 @@
 package com.tanvoid0.portallauncher.automation
 
+import com.tanvoid0.portallauncher.data.BlockerMode
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -61,5 +62,32 @@ class BlockerPolicyTest {
     fun `a session unlock never expires within the session`() {
         val unlocked = mapOf("com.example.social" to Long.MAX_VALUE)
         assertFalse(decide("com.example.social", unlocked))
+    }
+
+    @Test
+    fun `allowlist mode blocks everything except the named packages`() {
+        val allowed = setOf("com.example.mail")
+        assertFalse(
+            "the allowed package is not blocked",
+            BlockerPolicy.shouldBlock("com.example.mail", allowed, emptyMap(), now, never, BlockerMode.AllowlistOnly)
+        )
+        assertTrue(
+            "everything not on the allowlist is blocked",
+            BlockerPolicy.shouldBlock("com.example.social", allowed, emptyMap(), now, never, BlockerMode.AllowlistOnly)
+        )
+    }
+
+    @Test
+    fun `the launcher and the dialer are never blocked, even under allowlist mode`() {
+        assertFalse(
+            BlockerPolicy.shouldBlock(
+                "com.android.dialer",
+                emptySet(),
+                emptyMap(),
+                now,
+                never,
+                BlockerMode.AllowlistOnly
+            )
+        )
     }
 }

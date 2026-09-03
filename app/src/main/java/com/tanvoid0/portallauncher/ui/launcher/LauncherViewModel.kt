@@ -29,6 +29,7 @@ import com.tanvoid0.portallauncher.data.placeAnywhere
 import com.tanvoid0.portallauncher.data.reflow
 import com.tanvoid0.portallauncher.data.resolveActiveProfile
 import com.tanvoid0.portallauncher.data.resolveHomeEntries
+import com.tanvoid0.portallauncher.ui.kit.IconShape
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -245,6 +246,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         initialValue = LauncherUiState()
     )
 
+    /** The icon mask the user picked, for [rememberAppIcon] to key its render on. */
+    val iconShape: StateFlow<IconShape> = preferencesRepository.iconShape.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = IconShape.System
+    )
+
     init {
         refreshLiveWidgets()
         healLayoutForGrid()
@@ -276,8 +284,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Icon for a visible cell, cached across screens. See [com.tanvoid0.portallauncher.data.IconCache]. */
-    suspend fun loadIcon(app: LaunchableApp, sizePx: Int): ImageBitmap? =
-        iconCache.icon(app, sizePx)
+    suspend fun loadIcon(app: LaunchableApp, sizePx: Int, shape: IconShape = IconShape.System): ImageBitmap? =
+        iconCache.icon(app, sizePx, shape)
 
     fun isOnHomeScreen(app: LaunchableApp): Boolean = isOnHome(uiState.value.cells, app)
 

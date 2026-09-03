@@ -1,5 +1,6 @@
 package com.tanvoid0.portallauncher.ui.settings
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Switch
@@ -21,12 +23,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.ai.AiStatus
+import com.tanvoid0.portallauncher.ui.assistant.AiAssistantSheet
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalRow
 import com.tanvoid0.portallauncher.ui.kit.PortalScreen
@@ -41,17 +47,41 @@ fun SettingsScreen(
 ) {
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
     val aiEnabled by viewModel.aiEnabled.collectAsStateWithLifecycle()
+    val assistantEnabled by viewModel.assistantEnabled.collectAsStateWithLifecycle()
     val working by viewModel.working.collectAsStateWithLifecycle()
     val backupMessage by viewModel.backupMessage.collectAsStateWithLifecycle()
+    var showAssistant by remember { mutableStateOf(false) }
 
     // The system document picker, so Portal never decides where a file goes and needs no
     // storage permission at all.
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri -> uri?.let(viewModel::exportBackup) }
+    // Restore replaces every profile the instant it runs, so the picked file only becomes
+    // pending here — the actual restore call waits for the confirm dialog below.
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let(viewModel::importBackup) }
+    ) { uri -> uri?.let { pendingRestoreUri = it } }
+
+    pendingRestoreUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingRestoreUri = null },
+            title = { Text(stringResource(R.string.restore_confirm_title)) },
+            text = { Text(stringResource(R.string.restore_confirm_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.importBackup(uri)
+                    pendingRestoreUri = null
+                }) { Text(stringResource(R.string.restore)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRestoreUri = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 
     backupMessage?.let { message ->
         AlertDialog(
@@ -105,6 +135,23 @@ fun SettingsScreen(
                         )
                     }
                 )
+                PortalRow(
+                    title = stringResource(R.string.ai_assistant_title),
+                    subtitle = stringResource(assistantSummaryRes(aiStatus, assistantEnabled, working)),
+                    icon = Icons.Default.SmartToy,
+                    onClick = if (assistantEnabled && aiStatus == AiStatus.Ready) {
+                        { showAssistant = true }
+                    } else {
+                        null
+                    },
+                    trailing = {
+                        Switch(
+                            checked = assistantEnabled,
+                            onCheckedChange = viewModel::setAssistantEnabled,
+                            enabled = aiStatus != AiStatus.Unavailable && !working
+                        )
+                    }
+                )
             }
             PortalGroup(title = stringResource(R.string.settings_backup)) {
                 PortalRow(
@@ -131,6 +178,10 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showAssistant) {
+        AiAssistantSheet(onDismiss = { showAssistant = false })
+    }
 }
 
 private fun aiSummaryRes(status: AiStatus, enabled: Boolean, working: Boolean): Int = when {
@@ -141,4 +192,19 @@ private fun aiSummaryRes(status: AiStatus, enabled: Boolean, working: Boolean): 
     status == AiStatus.Downloadable -> R.string.ai_downloadable
     enabled -> R.string.ai_on
     else -> R.string.ai_off
+}
+
+/**
+ * Same shape as [aiSummaryRes], for the assistant row. No shared composable existed
+ * for this status messaging -- [SettingsViewModel]'s AI section is the only other
+ * place it appears -- so this stays a sibling function rather than a speculative
+ * extraction, reusing [R.string.ai_downloading] where the wording is generic enough.
+ */
+private fun assistantSummaryRes(status: AiStatus, enabled: Boolean, working: Boolean): Int = when {
+    working -> R.string.ai_downloading
+    status == AiStatus.Unavailable -> R.string.ai_assistant_unavailable
+    !enabled -> R.string.ai_assistant_off
+    status == AiStatus.Downloadable -> R.string.ai_assistant_needs_download
+    status == AiStatus.Downloading -> R.string.ai_downloading
+    else -> R.string.ai_assistant_on
 }

@@ -25,31 +25,36 @@ class ProfileRepository(
     suspend fun updateSortOrder(id: String, order: Int) = profileDao.updateSortOrder(id, order)
 
     /**
-     * Inserts every [BuiltInProfiles] entry that is not already in the table, with
-     * its app-visibility config.
+     * Inserts every [BuiltInProfiles] entry that is neither [alreadySeeded] nor
+     * already in the table, with its app-visibility config plus whatever else
+     * [BuiltInProfile.automations] lists.
      *
      * Missing-only rather than insert-all: an install from before the built-ins
      * existed already has a "default" row, and overwriting it would throw away
-     * whatever the user had done to it. The caller is responsible for running this
-     * once — re-running it would resurrect profiles the user deleted.
+     * whatever the user had done to it. [alreadySeeded] is what stops a profile the
+     * user deleted from coming back — the in-table check alone cannot tell "never
+     * seeded" from "seeded, then deleted", and this can now run more than once, as
+     * new built-in templates are added to [BuiltInProfiles.all] on an existing
+     * install — see [PreferencesRepository.seededBuiltInProfileIds].
      *
      * [resolveName] turns a built-in's name resource into text — the caller has the
      * Context, this repository does not. Resolved exactly once, here: after seeding,
      * a profile's name is the user's data, the same as a rename.
      */
-    suspend fun seedBuiltInProfiles(resolveName: (BuiltInProfile) -> String) {
+    suspend fun seedBuiltInProfiles(alreadySeeded: Set<String>, resolveName: (BuiltInProfile) -> String) {
         val existing = profileDao.getAllProfiles().first().mapTo(mutableSetOf()) { it.id }
         // Index into `all`, not into the filtered remainder: the sort order has to
         // match the declared order even when some of the list is already present.
         BuiltInProfiles.all.forEachIndexed { index, builtIn ->
-            if (builtIn.id in existing) return@forEachIndexed
+            if (builtIn.id in alreadySeeded || builtIn.id in existing) return@forEachIndexed
             profileDao.insert(
                 ProfileEntity(
                     id = builtIn.id,
                     name = resolveName(builtIn),
                     iconResName = builtIn.id,
                     type = builtIn.type.name,
-                    enabledAutomationIds = BuiltInProfiles.enabledAutomationIds,
+                    enabledAutomationIds = listOf(AutomationIds.APP_VISIBILITY) +
+                        builtIn.automations.map { it.automationId },
                     sortOrder = index
                 )
             )
@@ -60,6 +65,9 @@ class ProfileRepository(
                     configJson = ConfigCodec.encode(BuiltInProfiles.visibilityConfig(builtIn))
                 )
             )
+            builtIn.automations.forEach { seed ->
+                automationConfigDao.insert(AutomationConfigEntity(builtIn.id, seed.automationId, seed.configJson))
+            }
         }
     }
 

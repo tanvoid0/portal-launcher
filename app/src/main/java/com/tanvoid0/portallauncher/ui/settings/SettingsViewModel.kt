@@ -51,6 +51,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val aiEnabled: StateFlow<Boolean> = preferences.aiCategoriesEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val assistantEnabled: StateFlow<Boolean> = preferences.aiAssistantEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     init {
         viewModelScope.launch {
             _aiStatus.value = categorizer.status()
@@ -77,6 +80,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _aiStatus.value = categorizer.download()
             }
             sweep()
+        }
+    }
+
+    /**
+     * The assistant needs the same on-device model as categorisation, but nothing
+     * about the assistant is worth writing over -- there is no result to clear when
+     * it is switched off, unlike [aiCategoryDao] above.
+     */
+    fun setAssistantEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferences.setAiAssistantEnabled(enabled)
+            if (enabled && _aiStatus.value == AiStatus.Downloadable) {
+                _working.value = true
+                try {
+                    _aiStatus.value = categorizer.download()
+                } finally {
+                    _working.value = false
+                }
+            }
         }
     }
 

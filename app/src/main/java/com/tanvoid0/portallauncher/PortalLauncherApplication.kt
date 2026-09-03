@@ -8,6 +8,7 @@ import com.tanvoid0.portallauncher.data.ActiveProfileSource
 import com.tanvoid0.portallauncher.data.AppDatabase
 import com.tanvoid0.portallauncher.data.AppRepository
 import com.tanvoid0.portallauncher.data.BackupRepository
+import com.tanvoid0.portallauncher.data.BuiltInProfiles
 import com.tanvoid0.portallauncher.data.CrashRecorder
 import com.tanvoid0.portallauncher.data.IconCache
 import com.tanvoid0.portallauncher.data.PreferencesRepository
@@ -90,8 +91,20 @@ class PortalLauncherApplication : Application() {
         // dies leaves the user with no home screen and nothing to report.
         CrashRecorder.install(this)
         appScope.launch {
-            if (!preferencesRepository.builtInProfilesSeeded.first()) {
-                profileRepository.seedBuiltInProfiles { getString(it.nameRes) }
+            // Migration off the one-time flag: an install that already ran the old
+            // seed has decided the original eight ids (seeded, and possibly since
+            // deleted) without ever recording which — fold them in once so they are
+            // never reseeded, while any newer BuiltInProfiles entry still gets a turn.
+            if (preferencesRepository.builtInProfilesSeeded.first() &&
+                preferencesRepository.seededBuiltInProfileIds.first().isEmpty()
+            ) {
+                preferencesRepository.addSeededBuiltInProfileIds(BuiltInProfiles.ORIGINAL_IDS)
+            }
+            val seeded = preferencesRepository.seededBuiltInProfileIds.first()
+            val pendingIds = BuiltInProfiles.all.map { it.id }.toSet() - seeded
+            if (pendingIds.isNotEmpty()) {
+                profileRepository.seedBuiltInProfiles(seeded) { getString(it.nameRes) }
+                preferencesRepository.addSeededBuiltInProfileIds(pendingIds)
                 preferencesRepository.setBuiltInProfilesSeeded(true)
             }
             // After seeding, so the first sync sees the profiles it may need to switch to.

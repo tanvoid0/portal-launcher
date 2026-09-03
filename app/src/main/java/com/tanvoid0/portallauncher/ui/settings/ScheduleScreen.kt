@@ -71,6 +71,10 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
     fun removeSlot(slot: ScheduleSlot) = write(slots.value - slot)
 
+    /** Replaces [old] with [new] in place, so editing a slot keeps its position in the list. */
+    fun updateSlot(old: ScheduleSlot, new: ScheduleSlot) =
+        write(slots.value.map { if (it == old) new else it })
+
     /**
      * Persists and re-arms in one step, so the alarm can never describe a timetable
      * other than the stored one.
@@ -93,6 +97,7 @@ fun ScheduleScreen(
     val slots by viewModel.slots.collectAsStateWithLifecycle()
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     var showAdd by rememberSaveable { mutableStateOf(false) }
+    var editingSlot by remember { mutableStateOf<ScheduleSlot?>(null) }
 
     PortalScreen(
         title = stringResource(R.string.schedule),
@@ -127,6 +132,7 @@ fun ScheduleScreen(
                                 formatTime(slot.endTimeMinutes),
                             subtitle = profiles.find { it.id == slot.profileId }?.name
                                 ?: stringResource(R.string.slot_deleted_profile),
+                            onClick = { editingSlot = slot },
                             trailing = {
                                 IconButton(onClick = { viewModel.removeSlot(slot) }) {
                                     Icon(
@@ -149,18 +155,28 @@ fun ScheduleScreen(
             onDismiss = { showAdd = false }
         )
     }
+
+    editingSlot?.let { slot ->
+        AddSlotDialog(
+            profiles = profiles,
+            editing = slot,
+            onAdd = { viewModel.updateSlot(slot, it); editingSlot = null },
+            onDismiss = { editingSlot = null }
+        )
+    }
 }
 
 @Composable
 private fun AddSlotDialog(
     profiles: List<ProfileEntity>,
+    editing: ScheduleSlot? = null,
     onAdd: (ScheduleSlot) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var start by remember { mutableIntStateOf(9 * 60) }
-    var end by remember { mutableIntStateOf(17 * 60) }
-    var profileId by remember { mutableStateOf(profiles.firstOrNull()?.id) }
+    var start by remember { mutableIntStateOf(editing?.startTimeMinutes ?: 9 * 60) }
+    var end by remember { mutableIntStateOf(editing?.endTimeMinutes ?: 17 * 60) }
+    var profileId by remember { mutableStateOf(editing?.profileId ?: profiles.firstOrNull()?.id) }
 
     fun pickTime(current: Int, onPicked: (Int) -> Unit) {
         TimePickerDialog(
@@ -174,7 +190,7 @@ private fun AddSlotDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.new_slot)) },
+        title = { Text(stringResource(if (editing != null) R.string.edit_slot else R.string.new_slot)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -218,7 +234,7 @@ private fun AddSlotDialog(
                 },
                 // A slot that starts and ends at the same minute covers nothing.
                 enabled = profileId != null && start != end
-            ) { Text(stringResource(R.string.add)) }
+            ) { Text(stringResource(if (editing != null) R.string.save else R.string.add)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }

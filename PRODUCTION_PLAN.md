@@ -991,3 +991,371 @@ one radio-role target with the inner RadioButton contributing no second one;
 and `clickableCell` merges icon and label into one button. The monorepo README
 entry for this app was also brought up to date — it still said "early
 scaffold, no functional logic yet".
+
+## 17. New automations, AI assistant, and the onboarding HOME-resolve fix
+
+As of 2026-09-02, 36 files uncommitted (943 insertions / 305 deletions), on top of
+§16's `ecf0110`. Not yet split into commits or fully re-verified this pass — treat
+`git diff` as the source of truth for exact scope, not this summary. What's known:
+
+- **Three new automations**: `DisplayComfortAutomation.kt`, `DndAutomation.kt`,
+  `PowerSaverAutomation.kt` (+ `DisplaySettingsController.kt`,
+  `BackgroundAppTrimmer.kt`), wired into `BuiltInProfiles.kt` (+160/-23) as new
+  seeded profiles — Display Comfort, DND, Power Saver Standard/Ultra — added
+  additively alongside the existing built-ins, not replacing them. Grant /
+  permission-revoked handling rendered correctly in `ProfileEditScreen.kt` on
+  device (emulator-5556).
+- **`ui/assistant/`** — new package, plus `ai/agent/` — an AI agent surface added
+  to the launcher; not yet detailed here.
+- **Launcher icon rework** — old `ic_launcher_background/foreground.xml` +
+  per-density `.webp` mipmaps deleted, replaced with per-density `.png` mipmaps
+  and a new `ic_launcher_colors.xml`.
+- **`versionCode` fix**: confirmed on device it now derives correctly from
+  `git rev-list --count HEAD` rather than falling back to `1` (see root
+  `CLAUDE.md`'s note on this — `portal_launcher` is one of the two apps whose
+  commit count is independent of the monorepo's).
+
+**Onboarding HOME-resolve fix — verified on device 2026-09-02, PASS.**
+`AndroidManifest.xml`'s `<queries>` (added in D2/Phase 1) only declared the
+`MAIN`+`LAUNCHER` intent. Other launchers declare `MAIN`+`HOME` (+`DEFAULT`), not
+`LAUNCHER`, so `DefaultHomeStatus.kt`'s `resolveActivity(HOME)` could only ever
+resolve back to this app itself — onboarding step 2 ("Make Portal your home
+screen") silently dead-ended: the `Set as home app` button had nothing to do.
+Fix: added a second `<intent>` entry to `<queries>` for `MAIN`+`HOME`.
+
+Verified with a genuinely fresh install (uninstall + reinstall
+`com.tanvoid0.portallauncher.debug` on emulator-5556, not just cleared data) so
+onboarding ran from scratch: step 2 now renders the `Set as home app` button,
+tapping it opens the real system `RoleManager`/home-chooser dialog listing all
+three installed launchers (Pixel, Portal, Smart) with the correct current
+default (Smart Launcher) pre-selected, and canceling it correctly leaves state
+unchanged (`Continue` still advances past the step regardless — it's not gated
+on actually setting the default). Emulator left with Smart Launcher still
+default, per QA convention — this fix was not exercised through to actually
+completing the home-app switch.
+
+**Next up**: a whole-app visual pass, scoped in §18 below — `ui/theme/Theme.kt`
+is still stock Material3 boilerplate (default purple
+`lightColorScheme`/`darkColorScheme`, dynamic color from wallpaper on API 31+),
+which reads as generic next to Smart Launcher's themed, adaptive-icon-shape
+look documented in `docs/screenshots/smart_launcher_reference/`.
+
+## 18. Visual pass — from stock Material to something that looks like a launcher
+
+Planned 2026-09-02, prompted by "it looks very boring next to Smart Launcher 5".
+Scope is **appearance**, not features — §16 already did the feature survey and
+closed what it was going to close. Reference material is
+`docs/screenshots/smart_launcher_reference/` (39 screens, README with structural
+takeaways) against `docs/screenshots/portal_launcher/` (our five). Read those two
+folders before touching anything below; the diagnosis is drawn from the images,
+not from memory of the app.
+
+### What the screenshots actually say
+
+- **Our home screen is three grey slabs stacked on the wallpaper** (`02`, `03`):
+  search pill, profile chip row, then a date card — every one a `GlassSurface` at
+  `surfaceContainerHighest × 0.55`. On a light wallpaper that is pale grey on
+  pale blue. The reference (`04`) has *no* panels at all: a 90-ish sp light-weight
+  clock and a date line drawn straight on the wallpaper, an empty middle, a row of
+  icons and one search pill at the bottom. Its polish is mostly absence.
+- **Our colours are Material You doing its job**: `Theme.kt` defaults to
+  `dynamicColor = true`, so the slate-blue buttons and lavender chips are the
+  emulator wallpaper desaturated through the tonal palette. That is precisely the
+  "generic" look. The reference keeps one vivid brand accent (`#0A5EFF`-ish) for
+  every control and lets the wallpaper tint only the launcher surfaces.
+- **Icons are circles because the OEM mask says so.** `IconCache.toImageBitmap`
+  calls `Drawable.draw`, which applies the system mask to every
+  `AdaptiveIconDrawable`. The reference (`08`, `16`) renders a uniform squircle it
+  chose. Since minSdk is 26, *every* device we run on has `AdaptiveIconDrawable`,
+  so a shape of our own is a compositing change, not an engine.
+- **Our drawer is a settings page** (`04`): white sheet, outlined text field, two
+  tinted "Profiles / Settings" tiles in the first row, `primary`-coloured section
+  headers, circles on white. The reference drawer (`16`, `19`) is a dark
+  full-page surface, a bold title with three icon buttons, a fixed 4-column grid
+  of big icons, and a bottom pill of category tabs that filters the page and
+  renames the title.
+- **The blocker overlay** (`05`) is black with three default-grey `Button`s: the
+  Service context has no Material theme, so they are Holo-styled. Ugliest screen
+  we ship and the cheapest to fix.
+- **Settings, Profiles, Schedule, Hidden apps, Onboarding** are already on the
+  kit (`PortalScreen` + `PortalGroup` + `PortalRow`) and read fine; they need the
+  new tokens and a couple of slots, not a rebuild.
+
+### Decisions this reopens, on purpose
+
+- **§5 "icon packs / custom icon theming — out."** Icon *packs* stay out (parsing
+  third-party appfilter XML is real work with no second caller). Icon *shape*
+  comes in, because on minSdk 26 it is ~60 lines in the rasteriser we already own.
+- **§9's frosted chips and §10's frosted dock strip.** Both were legibility fixes
+  for text on wallpaper. Phase 2 removes the chip row and the dock strip; the
+  legibility argument moves to `OnWallpaperTextStyle` (kept) and a single dark
+  glass that no longer depends on the theme.
+- **`Tokens.kt`'s `glassColor()` deriving from `surfaceContainerHighest`.** The
+  same file argues, for text, that no theme colour is legible on an arbitrary
+  wallpaper and picks white-with-shadow. The panels get the same reasoning: fixed
+  dark glass, white content, in both light and dark theme. "One material, one
+  alpha" stays; only the base stops following the theme.
+- **`Theme.kt`'s `dynamicColor = true` default** flips to a Portal palette, with
+  wallpaper colour as an opt-in ("Ambient", API 31+ only — the reference's own
+  name for the same idea).
+- **§16's "category bar"** is currently section headers on/off. Phase 3 makes the
+  preference (`drawer_category_bar_visible`, key unchanged) mean what it says.
+
+Not reopened: §16 keeps grid size on the long-press sheet; the drawer stays the
+search surface (documented in `AppDrawerSheet`); `PortalGroup` stays — the
+reference's plain full-bleed rows are exactly what the kit's own comment calls the
+2021 signal, and the inset-panel look is not what "boring" meant here.
+
+### Phase 1 — tokens and theme (1 day; cheap wins throughout) — DONE 2026-09-02
+
+Implemented as specified. `Theme.kt`'s palette is now dark `#101418` surface /
+`#4FC3D9` primary (sampled from `ic_launcher_foreground.png`), light `#006874`
+primary (~6.5:1 on white, hand-picked to M3 tonal convention rather than run
+through the Material Theme Builder tool — no network access in that pass).
+`Tokens.kt` got `PortalTypography`, `Launcher` (glass tokens), `IconShape` (System/
+Circle/Squircle/Rounded/Teardrop + `path()`); `glassColor()`/`GlassSurface` lost
+their now-dead `alpha` param since no caller used a non-default value.
+`IconCache.toImageBitmap(size, shape)` clips `AdaptiveIconDrawable`s to the shape
+path with correct `getExtraInsetFraction()` inset math — verified by the new
+`IconShapeTest` (androidTest), which passed on 3 connected devices (`Pixel_9a`,
+`portal_claude`, `Redmi Note 8 Pro`). The work-profile masking-order bug named as
+a risk was real and is fixed: `AppRepository.loadIcon` used to badge internally
+before handing `IconCache` an already-badged (non-adaptive) wrapper it could never
+mask; `loadIcon` now returns the raw drawable and a new `badge()` applies the
+work-profile badge *after* `IconCache` masks it. Four new preference keys
+(`theme_mode`, `color_source`, `icon_shape`, `home_labels`) default to
+System/Portal/System/true, so an existing install's rendering is unchanged until
+the (not-yet-built, Phase 4) Appearance screen lets someone opt in. Two real
+`UseKtx` lint errors fixed along the way (`Bitmap.toDrawable`, `Canvas.withClip`).
+`assembleDebug`/`lintDebug`/`testDebugUnitTest` green; no Phase 2/3/4 files touched.
+Not yet: no way to actually change these prefs from the UI (that's Phase 4), so
+nothing is visually different yet on a running device — this phase is the plumbing.
+
+### Phase 1 spec (as planned, for reference)
+
+**`ui/theme/Theme.kt`.** Replace the two boilerplate palettes with a Portal pair
+generated once (Material Theme Builder, pasted in — no runtime generator). Seeds:
+surface `#101418` (already `ic_launcher_background`, i.e. the family's black) and
+the cyan of the launcher icon foreground as `primary`; the light scheme uses a
+deeper teal for a ≥4.5:1 accent on white. Add `typography = PortalTypography`.
+The signature already takes `darkTheme` and `dynamicColor`; only the defaults and
+the source of truth change.
+
+**`ui/kit/Tokens.kt`.** Three additions and one change:
+
+- `PortalTypography` — system Roboto, deliberate weights: `displayLarge` at
+  ~88 sp `FontWeight.Light` with negative tracking (the clock — Roboto Light ships
+  on every device, zero bytes), `headlineLarge` bold for screen titles, `labelSmall`
+  slightly heavier for icon labels. *Optional, priced:* a bundled brand font in
+  `res/font/` costs 0.3–0.9 MB on a 2.8 MB release APK and R8 cannot shrink it.
+  Do the weights first; decide on the font after seeing them.
+- `object Launcher` — the wallpaper-world colours: `glass = Black × 0.40`,
+  `glassStrong = 0xF0101418` (the drawer page), `onGlass = White`,
+  `onGlassMuted = White × 0.7`. `glassColor()` becomes a plain constant and
+  `GlassSurface` sets `contentColor = onGlass`, so `Text` inside a panel is white
+  without every call site merging `OnWallpaperTextStyle`.
+- `enum class IconShape { System, Circle, Squircle, Rounded, Teardrop }` with one
+  `fun path(size: Float): android.graphics.Path`. One function, three callers:
+  the rasteriser, the Appearance preview (`GenericShape` wrapping the same path),
+  and the blocker overlay's app icon.
+
+**`data/IconCache.kt`.** `toImageBitmap(size, shape)`: if the drawable is an
+`AdaptiveIconDrawable` and the shape is not `System`, clip the canvas to
+`shape.path(size)` and draw `background` then `foreground` with bounds inset by
+`-size × getExtraInsetFraction()` on every side (layers are 108 dp for a 72 dp
+visible icon, so the layer is 1.5× the bitmap, centred). Cache key gains
+`@${shape.name}`. Legacy non-adaptive icons draw as today — `ponytail:` no
+"wrap legacy icons in a background tile"; add it if the mixed look bothers anyone.
+**Ordering matters for work-profile apps:** `AppRepository.loadIcon` badges via
+`getUserBadgedIcon`, which returns a non-adaptive wrapper — mask first, badge the
+masked bitmap after, or every work app silently loses its shape.
+
+**`data/PreferencesRepository.kt`.** Four keys: `theme_mode` (System/Light/Dark),
+`color_source` (Portal/Wallpaper, default Portal), `icon_shape` (default System),
+`home_labels` (default true). Defaults mean an existing install changes only in
+palette, which is the point.
+
+**`ui/MainActivity.kt`.** Read `themeMode` / `colorSource` with the same
+`produceState` pattern `setupComplete` uses and pass them to
+`PortalLauncherTheme(darkTheme, dynamicColor)`.
+**`ui/launcher/LauncherViewModel.kt`** collects `iconShape` and passes it to
+`iconCache.icon(app, sizePx, shape)`; `rememberAppIcon` keys its `produceState`
+on the shape so a change refills visible cells.
+
+*Done when:* the app builds with no `Color(0xFF6750A4)` left anywhere, switching
+the shape preference re-renders every icon on home, dock and drawer without a
+restart, and a work-profile app keeps both its badge and its shape.
+
+### Phase 2 — the home screen (1–2 days)
+
+All in `ui/launcher/LauncherHomeScreen.kt` unless noted.
+
+1. **Header.** Delete `AtAGlanceCard` and the chip row. New `ClockHeader`: time
+   in `displayLarge` + `OnWallpaperTextStyle`, ticking on the minute (the
+   `produceState` loop already exists — reuse it, format `HH:mm` per locale via
+   `DateFormat.getTimeFormat`), date line in `titleMedium` beneath. **No weather**:
+   the manifest has no `INTERNET` permission and adding one plus location for a
+   second line of text is not a visual pass. `ponytail:` if a second datum is
+   wanted, battery percentage is a sticky broadcast and needs nothing.
+2. **The profile pill.** Next to the date: one `GlassSurface` pill showing the
+   active profile's icon and name (only when `profiles.size > 1`, same rule as
+   today's chips). Tap opens `ProfileSwitcherSheet` — `ModalBottomSheet` +
+   `PortalGroup` + `SelectableRow` (exactly onboarding's `ProfileStep`) plus a
+   "Manage profiles" row calling `onOpenProfiles`. The profile stays one tap away,
+   and the header reads as *this phone is in Study* rather than a filter bar.
+   Needs `ProfileType.icon: ImageVector` in `ui/kit/Labels.kt` beside `labelRes`
+   (second caller: Phase 4's profile list). `ProfileEntity.iconResName` is written
+   and never read anywhere; leave it, map by `type`.
+3. **Bottom.** `SearchPill` moves below the grid, directly above the dock, and
+   becomes the reference's pill: `Launcher.glass`, icon + "Search apps" in
+   `bodyLarge`, rounded full. `Dock` loses its `GlassSurface` strip — four icons
+   and the drawer button float on the wallpaper, `navigationBars` padding kept.
+   Swipe-up and the drawer button are unchanged.
+4. **Cells.** `ICON_SIZE` 48 → 56 dp, `CELL_SIZE` follows. `AppIconCell` gains
+   `showLabel` from the `home_labels` preference (threaded through `HomePager`;
+   the drawer always shows labels). `PageDots` in `HomePager.kt` use `Launcher.onGlass`
+   instead of `onSurface` — they sit on the wallpaper.
+5. **`HomeOptionsSheet`** gains two rows: *Appearance* (Phase 4's screen) and
+   *Settings*, which is what the reference's long-press menu (`05`) leads with,
+   and gives home a route to management that does not go through the drawer.
+
+New strings: pill content description, "Manage profiles", the two rows. Nothing
+else in `LauncherViewModel` changes — the state it exposes already has everything.
+
+*Done when:* the top third of the home screen contains no panel, the profile
+switch is still one tap plus one tap, and `SemanticsTest` shows the pill as one
+merged button announcing the profile name.
+
+### Phase 3 — the drawer and the category bar (1–2 days)
+
+`ui/launcher/AppDrawerSheet.kt`, almost entirely.
+
+1. **Surface.** The `ModalBottomSheet` in `LauncherHomeScreen` gets
+   `containerColor = Launcher.glassStrong`, `contentColor = Launcher.onGlass`,
+   `dragHandle = null` (already). The sheet becomes `fillMaxHeight()` — it is a
+   page, as the reference's is — and `AppIconCell` reads `LocalContentColor`
+   instead of `colorScheme.onSurface`, which is the one-line change that makes
+   labels white in the drawer and theme-coloured nowhere else. Always dark, in
+   both themes: the reference's drawer is dark under a white settings app too,
+   and it is the split that makes management screens feel like a different
+   world from the launcher.
+2. **Header.** A row: title in `headlineLarge` bold — "All apps", or the selected
+   category's `labelRes` — and the kebab. The search field stays (the drawer is
+   the search surface, per its own doc comment) but restyled as a glass pill
+   under the title; `autoFocusSearch` and Go-launches-top-hit are untouched.
+3. **`DrawerShortcut` is deleted.** Profiles and Settings become rows in
+   `DrawerOptionsSheet` next to Hidden apps — the reference keeps management in
+   the overflow, and the two tinted tiles are the single most "settings page"
+   thing in the screenshot. Home's long-press sheet (Phase 2.5) is the other route.
+4. **Grid.** `GridCells.Fixed(grid.columns)` using the existing home grid
+   preference — it is already documented as "how big you want icons on this
+   screen" — instead of `Adaptive(80.dp)`. Same 56 dp icons as home.
+5. **`CategoryBar`.** When `categoryBarVisible`: a `Launcher.glass` pill pinned
+   to the bottom of the sheet (`navigationBars` + `imePadding` respected), one
+   `selectable(role = Role.Tab)` icon per `AppCategory` that has at least one
+   app, "All" first, 3 dp underline under the selected one. Selecting filters
+   `results` to that category and swaps the title; searching ignores the
+   selection (ranked, flat, as today). Section headers go — bar on means tabs,
+   bar off means the flat list that already exists. Needs `AppCategory.icon` in
+   `Labels.kt` (School, Forum, Work, SportsEsports, Spa, DirectionsCar, Apps —
+   all in `material-icons-extended`, already a dependency, R8 keeps only what is
+   referenced). Second and third callers: `AppContextMenu.CategoryPicker` and the
+   profile editor's category chips (Phase 4).
+6. **Empty category** (`19`'s Games tab): `EmptyState` with the category name
+   and "Long-press an app to move it here", which is the mechanism we already have.
+7. *Optional, verify on device:* the reference (`19`) hugs a short category to the
+   bottom, above the bar. `Column(verticalArrangement = Arrangement.Bottom)` with
+   the grid at `weight(1f, fill = false)` does that in a full-height sheet. If it
+   fights `imePadding`, drop it — `16` is top-anchored and looks fine.
+
+Deliberately not built: user-defined categories, the add-category picker (`26`),
+drag-to-reassign, server auto-sort (`17`–`18`). The enum is the product's axis
+(§ `AppCategory` doc) and this pass does not change it. The `category_bar_subtitle`
+string is reworded to describe tabs.
+
+*Done when:* the drawer opens dark on a light-themed phone, tapping a tab shows
+only that category and retitles the page, the flat mode still works with the bar
+off, and search still launches the top hit on Go.
+
+### Phase 4 — the rest of the app (1–2 days)
+
+- **`ui/settings/AppearanceScreen.kt` (new) + `Routes.APPEARANCE`.** The
+  reference's `07` in one screen: a live preview card at the top — a
+  `Launcher.glassStrong` box with the clock in a scaled `displayLarge`, three real
+  icons from `rememberAppIcon` at the current shape, a mini search pill — then
+  `PortalGroup`s for Theme (`ChoiceChips`), Colours (Portal / Wallpaper; the row
+  hidden below API 31 rather than disabled, there is nothing to explain), Icon
+  shape (a 4-column grid of `Box(clip(shape))` swatches, selected one ringed in
+  `primary`), Home labels (`Switch`). Reaches the icons through a
+  `viewModel<LauncherViewModel>()` of its own — a second instance is cheap and
+  reads the same application-scoped cache. `SettingsScreen` gets an "Appearance"
+  group at the top linking here; `MainActivity` gets the route.
+- **`ui/kit/Components.kt`.** Two slots, no new components: `PortalRow(iconTint)`
+  so Settings rows can colour-code their icons the way `06` does (default stays
+  `secondaryContainer`); `SelectableRow(leading)` so a profile row can show its
+  type icon. `SemanticsTest` pins that `SelectableRow` is one radio target — the
+  leading slot must not add a second.
+- **`ui/profiles/ProfileListScreen.kt`.** Each row gains its `ProfileType.icon`
+  in the leading slot; the active row keeps `secondaryContainer`. Radio semantics
+  unchanged. **`ProfileEditScreen.kt`**: category `FilterChip`s get
+  `leadingIcon = AppCategory.icon` — the same glyphs the drawer tabs use, so
+  "which apps a profile shows" and "where those apps live in the drawer" look like
+  the same thing, which they are.
+- **`automation/BlockerService.kt` (`buildOverlay`).** Keep plain views; style
+  them: scrim `Launcher.glassStrong.toArgb()`, the blocked app's icon at 72 dp
+  through `IconShape` (third caller), title in bold, three buttons with a
+  `GradientDrawable` background (28 dp radius, primary for "Go back", glass for
+  the other two) and white text. Colours come from `Tokens.kt` as `Color.toArgb()`
+  — one source of truth, no `colors.xml` resurrected. ~25 lines.
+- **Onboarding, Schedule, Hidden apps, Assistant, widget picker**: no edits.
+  They inherit the palette and typography and were already on the kit; `01`
+  looks fine and the reference's inline permission toggles are a feature, not a
+  style.
+- **Re-shoot `docs/screenshots/portal_launcher/`** after each phase — the current
+  five are the "before" set and the doc should carry the "after".
+
+*Done when:* every appearance preference is reachable from Settings and from the
+home long-press, the blocker overlay uses the brand colours, and the before/after
+screenshots sit side by side in `docs/screenshots/`.
+
+### Large lifts, named so nobody starts them by accident
+
+| Wanted from the reference | Why not here |
+|---|---|
+| Icon packs (`08`, "Icon pack: Default") | Third-party appfilter parsing + a picker + per-app fallbacks. §5 stands. |
+| Backdrop blur (`16`'s drawer, `07` "Blur effect") | Compose has no backdrop blur; `Window.setBackgroundBlurRadius` is API 31+, window-level, and the sheet is a dialog window. Dark glass at 94% reads the same at a glance. |
+| Weather in the header | Network + location permissions + a provider. |
+| Editable categories / auto-sort (`17`–`26`) | Changes the product's axis; not a visual concern. |
+| Search page (`38`–`39`) | Already scoped separately in the reference README's takeaways. |
+| Bundled brand font | Allowed, but only after seeing the Roboto weight scale; costs up to a third of the APK. |
+
+### Risks
+
+- **Adaptive-icon inset maths.** Off by the 0.25 fraction and every icon renders
+  zoomed or with a ring of background. The Phase 1 check below is aimed at exactly
+  this. Work-profile badge ordering is the second trap, covered above.
+- **`SemanticsTest` is the accessibility contract.** Both kit slot additions and
+  the new profile pill and tabs are asserted through it, not through uiautomator.
+- **Preference defaults are the migration.** Nothing in Room changes. `System`
+  shape, labels on, Portal palette: an upgrading user sees new colours and a
+  restyled home, not a rearranged one. The one behaviour change is category tabs
+  replacing headers for anyone who never touched the toggle — intended.
+- **Full-height drawer + bottom anchoring** is the only layout in this section
+  not proven in Compose on this codebase; it has a stated fallback.
+- **Lint gate.** `warningsAsErrors` with no baseline: every new string goes through
+  `strings.xml`, every new icon is referenced by name so R8 keeps it.
+
+### The check
+
+Add `app/src/androidTest/.../data/IconShapeTest.kt` in Phase 1: build a synthetic
+`AdaptiveIconDrawable(ColorDrawable(RED), ColorDrawable(BLUE))`, rasterise it at
+96 px with `IconShape.Circle` through the same function `IconCache` uses, and assert
+pixel `(2, 2)` has alpha 0 and pixel `(48, 48)` is opaque blue. It fails if the mask
+is not applied (corner opaque), if the layer inset is wrong (corner red, or centre
+not blue), and if the shape is ignored for adaptive icons. Then the standard gate:
+
+```bash
+./gradlew :app:lintDebug :app:testDebugUnitTest :app:connectedDebugAndroidTest
+```
+
+`SemanticsTest` in the same run covers Phases 2–4's slot and tab semantics.

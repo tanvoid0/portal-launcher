@@ -48,7 +48,11 @@ import com.tanvoid0.portallauncher.automation.AutomationRegistry
 import com.tanvoid0.portallauncher.automation.GreyscaleAutomation
 import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.AutomationIds
+import com.tanvoid0.portallauncher.data.BrightnessMode
+import com.tanvoid0.portallauncher.data.DndFilterLevel
+import com.tanvoid0.portallauncher.data.PowerSaverIntensity
 import com.tanvoid0.portallauncher.data.ProfileType
+import com.tanvoid0.portallauncher.data.RefreshRateMode
 import com.tanvoid0.portallauncher.ui.kit.ChoiceChips
 import com.tanvoid0.portallauncher.ui.kit.MultiChoiceChips
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
@@ -75,7 +79,10 @@ fun ProfileEditScreen(
     // answer can have changed.
     LifecycleResumeEffect(Unit) {
         viewModel.refreshAvailability()
-        onPauseOrDispose { }
+        // Every field autosaves as it changes (see ProfileEditViewModel), except the
+        // name field, which debounces — flush it here so leaving right after typing
+        // does not lose it to the timer.
+        onPauseOrDispose { viewModel.flushPendingEdits() }
     }
 
     if (state.loading) {
@@ -179,6 +186,7 @@ private fun AutomationsSection(
     val context = LocalContext.current
     var showNotificationPicker by remember { mutableStateOf(false) }
     var showBlockerPicker by remember { mutableStateOf(false) }
+    var showPowerSaverPicker by remember { mutableStateOf(false) }
 
     PortalGroup(title = stringResource(R.string.automations)) {
         AutomationRegistry.all.forEach { automation ->
@@ -191,20 +199,32 @@ private fun AutomationsSection(
                     title = stringResource(automation.titleRes),
                     subtitle = availability.reason
                 )
-                is AutomationAvailability.NeedsPermission -> PortalRow(
-                    title = stringResource(automation.titleRes),
-                    subtitle = availability.explanation,
-                    trailing = {
-                        TextButton(onClick = {
-                            try {
-                                context.startActivity(availability.settingsIntent)
-                            } catch (_: ActivityNotFoundException) {
-                                // Nowhere to send them on this device; the row already
-                                // explains what is missing.
+                is AutomationAvailability.NeedsPermission -> {
+                    PortalRow(
+                        title = stringResource(automation.titleRes),
+                        subtitle = availability.explanation,
+                        trailing = {
+                            if (enabled) {
+                                // Was on before the grant was revoked (e.g. the user
+                                // pulled it in system settings). Let them turn it off;
+                                // turning it back on needs the grant first, below.
+                                Switch(
+                                    checked = true,
+                                    onCheckedChange = { viewModel.setAutomationEnabled(automation.id, false) }
+                                )
+                            } else {
+                                TextButton(onClick = {
+                                    try {
+                                        context.startActivity(availability.settingsIntent)
+                                    } catch (_: ActivityNotFoundException) {
+                                        // Nowhere to send them on this device; the row
+                                        // already explains what is missing.
+                                    }
+                                }) { Text(stringResource(R.string.grant)) }
                             }
-                        }) { Text(stringResource(R.string.grant)) }
-                    }
-                )
+                        }
+                    )
+                }
                 is AutomationAvailability.Ready -> {
                     PortalRow(
                         title = stringResource(automation.titleRes),
@@ -228,6 +248,13 @@ private fun AutomationsSection(
                         AutomationIds.APP_BLOCKER -> BlockerSettings(
                             state = state,
                             onPickApps = { showBlockerPicker = true }
+                        )
+                        AutomationIds.DISPLAY_COMFORT -> DisplayComfortSettings(state, viewModel)
+                        AutomationIds.DND -> DndSettings(state, viewModel)
+                        AutomationIds.POWER_SAVER -> PowerSaverSettings(
+                            state = state,
+                            viewModel = viewModel,
+                            onPickApps = { showPowerSaverPicker = true }
                         )
                     }
                 }
@@ -253,6 +280,15 @@ private fun AutomationsSection(
             onDismiss = { showBlockerPicker = false }
         )
     }
+    if (showPowerSaverPicker) {
+        AppPickerDialog(
+            title = stringResource(R.string.apps_to_keep_running),
+            viewModel = viewModel,
+            selected = state.powerSaver.excludedPackages,
+            onToggle = viewModel::toggleExcludedPackage,
+            onDismiss = { showPowerSaverPicker = false }
+        )
+    }
 }
 
 @Composable
@@ -264,6 +300,111 @@ private fun BlockerSettings(state: ProfileEditState, onPickApps: () -> Unit) {
             stringResource(R.string.apps_to_block_empty)
         } else {
             pluralStringResource(R.plurals.apps_chosen, blockedCount, blockedCount)
+        },
+        onClick = onPickApps
+    )
+}
+
+@Composable
+private fun DisplayComfortSettings(state: ProfileEditState, viewModel: ProfileEditViewModel) {
+    val comfort = state.displayComfort
+    // Resolved before the chip lambdas: their `label` callbacks are not composable
+    // scopes, so stringResource cannot be called inside them — see the type chips
+    // above in ProfileEditScreen.
+    val brightnessLabels = BrightnessMode.entries.associateWith {
+        stringResource(if (it == BrightnessMode.Auto) R.string.display_brightness_auto else R.string.display_brightness_manual)
+    }
+    val refreshLabels = RefreshRateMode.entries.associateWith {
+        stringResource(
+            when (it) {
+                RefreshRateMode.Auto -> R.string.refresh_rate_auto
+                RefreshRateMode.Min -> R.string.refresh_rate_min
+                RefreshRateMode.Max -> R.string.refresh_rate_max
+                RefreshRateMode.Custom -> R.string.refresh_rate_custom
+            }
+        )
+    }
+    GroupPanel {
+        Text(stringResource(R.string.display_brightness), style = MaterialTheme.typography.titleSmall)
+        ChoiceChips(
+            options = BrightnessMode.entries,
+            selected = comfort.brightnessMode,
+            onSelect = viewModel::setDisplayBrightnessMode,
+            label = { brightnessLabels[it] ?: it.name },
+            perRow = 2
+        )
+        if (comfort.brightnessMode == BrightnessMode.Manual) {
+            Slider(
+                value = comfort.brightnessPercent.toFloat(),
+                valueRange = 0f..100f,
+                onValueChange = viewModel::setDisplayBrightnessPercent
+            )
+        }
+        Text(stringResource(R.string.display_refresh_rate), style = MaterialTheme.typography.titleSmall)
+        ChoiceChips(
+            options = RefreshRateMode.entries,
+            selected = comfort.refreshRateMode,
+            onSelect = viewModel::setDisplayRefreshRateMode,
+            label = { refreshLabels[it] ?: it.name }
+        )
+        if (comfort.refreshRateMode == RefreshRateMode.Custom) {
+            Slider(
+                value = comfort.refreshRateHz,
+                valueRange = 30f..144f,
+                onValueChange = viewModel::setDisplayRefreshRateHz
+            )
+        }
+    }
+}
+
+@Composable
+private fun DndSettings(state: ProfileEditState, viewModel: ProfileEditViewModel) {
+    val levelLabels = DndFilterLevel.entries.associateWith {
+        stringResource(
+            when (it) {
+                DndFilterLevel.PriorityOnly -> R.string.dnd_priority_only
+                DndFilterLevel.AlarmsOnly -> R.string.dnd_alarms_only
+                DndFilterLevel.TotalSilence -> R.string.dnd_total_silence
+            }
+        )
+    }
+    GroupPanel {
+        Text(stringResource(R.string.dnd_filter_level), style = MaterialTheme.typography.titleSmall)
+        ChoiceChips(
+            options = DndFilterLevel.entries,
+            selected = state.dnd.filterLevel,
+            onSelect = viewModel::setDndFilterLevel,
+            label = { levelLabels[it] ?: it.name }
+        )
+    }
+}
+
+@Composable
+private fun PowerSaverSettings(
+    state: ProfileEditState,
+    viewModel: ProfileEditViewModel,
+    onPickApps: () -> Unit
+) {
+    val intensityLabels = PowerSaverIntensity.entries.associateWith {
+        stringResource(if (it == PowerSaverIntensity.Standard) R.string.power_saver_standard else R.string.power_saver_ultra)
+    }
+    GroupPanel {
+        Text(stringResource(R.string.intensity), style = MaterialTheme.typography.titleSmall)
+        ChoiceChips(
+            options = PowerSaverIntensity.entries,
+            selected = state.powerSaver.intensity,
+            onSelect = viewModel::setPowerSaverIntensity,
+            label = { intensityLabels[it] ?: it.name },
+            perRow = 2
+        )
+    }
+    val excludedCount = state.powerSaver.excludedPackages.size
+    PortalRow(
+        title = stringResource(R.string.apps_to_keep_running),
+        subtitle = if (excludedCount == 0) {
+            stringResource(R.string.apps_to_keep_running_empty)
+        } else {
+            pluralStringResource(R.plurals.apps_chosen, excludedCount, excludedCount)
         },
         onClick = onPickApps
     )

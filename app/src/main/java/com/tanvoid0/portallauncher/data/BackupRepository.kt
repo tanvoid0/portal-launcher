@@ -120,8 +120,10 @@ class BackupRepository(
         )
 
         // A restored setup is the user's own, so the built-ins must not be seeded over
-        // the top of it on next launch.
+        // the top of it on next launch — including any a newer build's BuiltInProfiles
+        // added after this backup was made, which the restore correctly left out.
         preferencesRepository.setBuiltInProfilesSeeded(true)
+        preferencesRepository.addSeededBuiltInProfileIds(BuiltInProfiles.all.map { it.id }.toSet())
 
         return RestoreResult.Success(backup.profiles.size, backup.overrides.size)
     }

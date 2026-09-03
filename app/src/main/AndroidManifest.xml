@@ -14,6 +14,16 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!--
+          Other launchers declare HOME (+DEFAULT), not LAUNCHER, so without this entry
+          DefaultHomeStatus.isDefaultHome's resolveActivity(HOME) query can only ever see
+          this app itself — onboarding's "set as home" step could never detect it wasn't
+          already done.
+        -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
     </queries>
 
     <!--
@@ -24,6 +34,13 @@
     -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!--
+      BackgroundAppTrimmer (Power Saver). Normal permission, granted at install with no
+      runtime prompt — killBackgroundProcesses only ever reaches our own user's cached
+      processes regardless.
+    -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <!--
       The app blocker (BlockerService). All four finally have code behind them:
@@ -38,6 +55,16 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!--
+      DisplaySettingsController (Display comfort, Power Saver). Special-access, like
+      usage stats above: the manifest declaration is what makes Settings.System.canWrite
+      ever true, but the actual grant happens in the ACTION_MANAGE_WRITE_SETTINGS screen,
+      not a runtime dialog.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:name=".PortalLauncherApplication"

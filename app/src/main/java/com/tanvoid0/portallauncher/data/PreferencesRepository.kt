@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tanvoid0.portallauncher.ui.kit.IconShape
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -22,9 +23,21 @@ private val KEY_ACTIVE_PROFILE_ID = stringPreferencesKey("default_profile_id")
 // of apps someone has installed is not something to opt anyone into by default.
 private val KEY_AI_CATEGORIES_ENABLED = booleanPreferencesKey("ai_categories_enabled")
 
-// Set once the built-in profiles have been written. Without it the seed would run
-// every launch and a profile the user deleted would come back on the next start.
+// Off until the user turns it on, same reasoning as above: a tool-calling assistant
+// that can switch profiles and change device settings is opt-in, never a default.
+private val KEY_AI_ASSISTANT_ENABLED = booleanPreferencesKey("ai_assistant_enabled")
+
+// Set once the built-in profiles have been written. Superseded by
+// KEY_SEEDED_BUILT_IN_PROFILE_IDS below, kept only so PortalLauncherApplication can
+// tell an upgrading install (this was true) from a genuinely fresh one (never set).
 private val KEY_BUILT_IN_PROFILES_SEEDED = booleanPreferencesKey("built_in_profiles_seeded")
+
+// Which BuiltInProfiles ids have been decided already — seeded, or in the case of a
+// pre-existing install, folded in as "already handled" during the one-time migration
+// off the flag above. A profile whose id is in this set is never seeded again, whether
+// or not it is still in the table, which is what lets BuiltInProfiles.all grow (a new
+// template reaching existing installs) without also resurrecting one the user deleted.
+private val KEY_SEEDED_BUILT_IN_PROFILE_IDS = stringSetPreferencesKey("seeded_built_in_profile_ids")
 
 // Set when the setup wizard finishes, including when it is skipped. Without it the
 // wizard is per-process and reappears on every cold start — which as the home app
@@ -64,10 +77,34 @@ private val KEY_SORT_MODE = stringPreferencesKey("drawer_sort_mode")
 // today's behaviour for everyone who never opens this toggle.
 private val KEY_CATEGORY_BAR_VISIBLE = booleanPreferencesKey("drawer_category_bar_visible")
 
+// Appearance, all default to today's look: nothing changes for an existing install
+// until it opts in through the (not yet built) Appearance screen.
+private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+private val KEY_COLOR_SOURCE = stringPreferencesKey("color_source")
+private val KEY_ICON_SHAPE = stringPreferencesKey("icon_shape")
+private val KEY_HOME_LABELS = booleanPreferencesKey("home_labels")
+
 /** How the drawer orders apps within a section (or across all of them, ungrouped). */
 enum class DrawerSortMode {
     ALPHABETICAL,
     MOST_USED
+}
+
+/** Follows the system setting until the user picks one side explicitly. */
+enum class ThemeMode {
+    SYSTEM,
+    LIGHT,
+    DARK
+}
+
+/**
+ * Where the theme's accent colour comes from. Portal is the brand palette in
+ * [com.tanvoid0.portallauncher.ui.theme.PortalLauncherTheme]; Wallpaper is Android's
+ * dynamic colour (API 31+), opt-in rather than default — see §18 of PRODUCTION_PLAN.md.
+ */
+enum class ColorSource {
+    PORTAL,
+    WALLPAPER
 }
 
 class PreferencesRepository(private val context: Context) {
@@ -88,6 +125,48 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setCategoryBarVisible(visible: Boolean) {
         context.dataStore.edit { prefs -> prefs[KEY_CATEGORY_BAR_VISIBLE] = visible }
+    }
+
+    /** Dark, light, or follows the system setting (the default). */
+    val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
+        prefs[KEY_THEME_MODE]?.let { stored ->
+            runCatching { ThemeMode.valueOf(stored) }.getOrNull()
+        } ?: ThemeMode.SYSTEM
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { prefs -> prefs[KEY_THEME_MODE] = mode.name }
+    }
+
+    /** Where the accent colour comes from. Defaults to the brand palette, not the wallpaper. */
+    val colorSource: Flow<ColorSource> = context.dataStore.data.map { prefs ->
+        prefs[KEY_COLOR_SOURCE]?.let { stored ->
+            runCatching { ColorSource.valueOf(stored) }.getOrNull()
+        } ?: ColorSource.PORTAL
+    }
+
+    suspend fun setColorSource(source: ColorSource) {
+        context.dataStore.edit { prefs -> prefs[KEY_COLOR_SOURCE] = source.name }
+    }
+
+    /** The mask app icons render through. Defaults to the OEM's own adaptive-icon mask. */
+    val iconShape: Flow<IconShape> = context.dataStore.data.map { prefs ->
+        prefs[KEY_ICON_SHAPE]?.let { stored ->
+            runCatching { IconShape.valueOf(stored) }.getOrNull()
+        } ?: IconShape.System
+    }
+
+    suspend fun setIconShape(shape: IconShape) {
+        context.dataStore.edit { prefs -> prefs[KEY_ICON_SHAPE] = shape.name }
+    }
+
+    /** Whether home-screen cells show a label under the icon. */
+    val homeLabels: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_HOME_LABELS] ?: true
+    }
+
+    suspend fun setHomeLabels(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_HOME_LABELS] = enabled }
     }
 
     /** Profiles where the home grid is the user's own list, empty or not. */
@@ -159,6 +238,15 @@ class PreferencesRepository(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[KEY_AI_CATEGORIES_ENABLED] = enabled }
     }
 
+    /** Whether the user opted in to the on-device AI assistant. */
+    val aiAssistantEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_ASSISTANT_ENABLED] == true
+    }
+
+    suspend fun setAiAssistantEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_AI_ASSISTANT_ENABLED] = enabled }
+    }
+
     /** Whether the shipped profiles have already been written to the database. */
     val builtInProfilesSeeded: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_BUILT_IN_PROFILES_SEEDED] == true
@@ -166,6 +254,18 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setBuiltInProfilesSeeded(seeded: Boolean) {
         context.dataStore.edit { prefs -> prefs[KEY_BUILT_IN_PROFILES_SEEDED] = seeded }
+    }
+
+    /** [BuiltInProfiles] ids already decided — see [KEY_SEEDED_BUILT_IN_PROFILE_IDS]. */
+    val seededBuiltInProfileIds: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_SEEDED_BUILT_IN_PROFILE_IDS] ?: emptySet()
+    }
+
+    /** Adds to the seeded-ids set; never removes, so this can be called incrementally. */
+    suspend fun addSeededBuiltInProfileIds(ids: Set<String>) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SEEDED_BUILT_IN_PROFILE_IDS] = (prefs[KEY_SEEDED_BUILT_IN_PROFILE_IDS] ?: emptySet()) + ids
+        }
     }
 
     /** Whether the user has been through first-run setup. False means show it. */

@@ -18,18 +18,19 @@ ksp {
  *
  * A hand-edited versionCode is the one number that must never repeat or go backwards,
  * and Play rejects a bundle that gets it wrong — so it is derived rather than typed.
- * Falls back to 1 outside a git checkout (a source archive, a shallow CI clone) so the
- * build still works; only the release job needs the real number, and it fetches
- * full history.
+ * A failure here (git missing, "dubious ownership", a shallow clone with no HEAD) must
+ * fail the build: silently falling back to a fixed number produces a versionCode that
+ * looks fine locally and gets rejected as a downgrade by adb/Play, or worse, accepted
+ * and never offered as an update again.
  */
 val gitCommitCount: Int by lazy {
-    runCatching {
-        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
-            .directory(rootDir)
-            .redirectErrorStream(true)
-            .start()
-        process.inputStream.bufferedReader().readText().trim().toInt()
-    }.getOrDefault(1)
+    val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    check(process.waitFor() == 0) { "git rev-list --count HEAD failed: $output" }
+    output.toInt()
 }
 
 android {

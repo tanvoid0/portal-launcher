@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.core.net.toUri
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AutomationIds
+import com.tanvoid0.portallauncher.data.BlockerMode
 
 /**
  * Blocks chosen apps while the profile is active, by watching the foreground app and
@@ -114,11 +115,19 @@ object BlockerPolicy {
         blocked: Set<String>,
         allowedUntil: Map<String, Long>,
         nowMillis: Long,
-        neverBlock: Set<String>
+        neverBlock: Set<String>,
+        mode: BlockerMode = BlockerMode.Blocklist
     ): Boolean {
         if (packageName == null) return false
         if (packageName in neverBlock) return false
-        if (packageName !in blocked) return false
+        // Blocklist: block the named packages. AllowlistOnly: block everything else —
+        // [blocked] is the same field, read as the surviving set instead (see
+        // AppBlockerConfig.blockedPackageNames).
+        val targeted = when (mode) {
+            BlockerMode.Blocklist -> packageName in blocked
+            BlockerMode.AllowlistOnly -> packageName !in blocked
+        }
+        if (!targeted) return false
         val until = allowedUntil[packageName] ?: return true
         return nowMillis >= until
     }

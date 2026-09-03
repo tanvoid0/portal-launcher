@@ -35,6 +35,34 @@ class ConfigCodecTest {
             ConfigCodec.decodeOr(ConfigCodec.encode(notifications), NotificationFilterConfig())
         )
 
+        val displayComfort = DisplayComfortConfig(
+            brightnessMode = BrightnessMode.Manual,
+            brightnessPercent = 80,
+            refreshRateMode = RefreshRateMode.Custom,
+            refreshRateHz = 90f
+        )
+        assertEquals(
+            displayComfort,
+            ConfigCodec.decodeOr(ConfigCodec.encode(displayComfort), DisplayComfortConfig())
+        )
+
+        val dnd = DndConfig(filterLevel = DndFilterLevel.TotalSilence)
+        assertEquals(dnd, ConfigCodec.decodeOr(ConfigCodec.encode(dnd), DndConfig()))
+
+        val powerSaver = PowerSaverConfig(
+            intensity = PowerSaverIntensity.Ultra,
+            excludedPackages = setOf("com.android.dialer")
+        )
+        assertEquals(powerSaver, ConfigCodec.decodeOr(ConfigCodec.encode(powerSaver), PowerSaverConfig()))
+
+        // A pre-Ultra Saver config on disk has no `mode` field at all; it must still
+        // decode, defaulting to the Blocklist behaviour it always had.
+        val legacyBlockerJson = """{"blockedPackageNames":["com.example.social"],"useOverlay":true}"""
+        assertEquals(
+            AppBlockerConfig(blockedPackageNames = listOf("com.example.social"), mode = BlockerMode.Blocklist),
+            ConfigCodec.decodeOr(legacyBlockerJson, AppBlockerConfig())
+        )
+
         val scheduler = SchedulerConfig(
             slots = listOf(
                 ScheduleSlot(9 * 60, 17 * 60, "productivity"),

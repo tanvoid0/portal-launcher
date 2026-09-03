@@ -79,6 +79,20 @@ class GeminiNanoCategorizer {
         }
         return result
     }
+
+    /**
+     * Runs [prompt] through the model and returns its raw reply text, or null on any
+     * failure -- no model, not ready, a quota rejection, a garbled response. Unlike
+     * [classify], the caller supplies the whole prompt; used by
+     * [com.tanvoid0.portallauncher.ai.agent.LauncherAgent] for open-ended tool-calling
+     * turns rather than the fixed categorisation prompt above.
+     */
+    suspend fun generate(prompt: String): String? {
+        val model = model ?: return null
+        if (status() != AiStatus.Ready) return null
+        return runCatching { model.generateContent(prompt) }.getOrNull()
+            ?.candidates?.firstOrNull()?.text
+    }
 }
 
 /**

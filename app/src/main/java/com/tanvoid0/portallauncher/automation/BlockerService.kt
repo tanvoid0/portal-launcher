@@ -14,6 +14,8 @@ import android.graphics.Typeface
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.provider.MediaStore
+import android.provider.Telephony
 import android.telecom.TelecomManager
 import android.util.TypedValue
 import android.view.Gravity
@@ -27,6 +29,7 @@ import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppBlockerConfig
 import com.tanvoid0.portallauncher.data.AutomationIds
+import com.tanvoid0.portallauncher.data.BlockerMode
 import com.tanvoid0.portallauncher.data.ConfigCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +64,7 @@ class BlockerService : Service() {
     private val usageStats by lazy { getSystemService(UsageStatsManager::class.java) }
 
     private var blocked: Set<String> = emptySet()
+    private var mode: BlockerMode = BlockerMode.Blocklist
     private val allowedUntil = mutableMapOf<String, Long>()
 
     private var currentForeground: String? = null
@@ -71,14 +75,22 @@ class BlockerService : Service() {
 
     /**
      * Never covered, whatever the config says: ourselves (an overlay on top of the home
-     * screen is a lockout with no surface left to undo it) and the dialer (a pause
-     * screen over an emergency call is indefensible).
+     * screen is a lockout with no surface left to undo it), the dialer (a pause screen
+     * over an emergency call is indefensible), and the default SMS and camera apps —
+     * the same emergency-reachability reasoning, and the pair Ultra Saver's allowlist
+     * leans on instead of naming device-specific packages. Resolved the same live way
+     * as the dialer: whichever app holds the role right now, not a hardcoded name.
      */
     private val neverBlock: Set<String> by lazy {
         setOfNotNull(
             packageName,
             runCatching { getSystemService(TelecomManager::class.java)?.defaultDialerPackage }
-                .getOrNull()
+                .getOrNull(),
+            runCatching { Telephony.Sms.getDefaultSmsPackage(this) }.getOrNull(),
+            runCatching {
+                packageManager.resolveActivity(Intent(MediaStore.ACTION_IMAGE_CAPTURE), 0)
+                    ?.activityInfo?.packageName
+            }.getOrNull()
         )
     }
 
@@ -96,10 +108,12 @@ class BlockerService : Service() {
                     stopSelf()
                     return@collect
                 }
-                blocked = ConfigCodec.decodeOr(
+                val config = ConfigCodec.decodeOr(
                     active.configJson(AutomationIds.APP_BLOCKER),
                     AppBlockerConfig()
-                ).blockedPackageNames.toSet()
+                )
+                blocked = config.blockedPackageNames.toSet()
+                mode = config.mode
                 // A new profile is a new session: reprieves granted under the old
                 // rules do not carry over.
                 allowedUntil.clear()
@@ -137,7 +151,7 @@ class BlockerService : Service() {
 
         val target = currentForeground
         scope.launch(Dispatchers.Main) {
-            if (BlockerPolicy.shouldBlock(target, blocked, allowedUntil, now, neverBlock)) {
+            if (BlockerPolicy.shouldBlock(target, blocked, allowedUntil, now, neverBlock, mode)) {
                 showOverlay(target!!)
             } else {
                 hideOverlay()

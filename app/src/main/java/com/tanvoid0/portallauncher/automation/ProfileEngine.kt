@@ -23,7 +23,10 @@ object AutomationRegistry {
     val all: List<Automation> = listOf(
         GreyscaleAutomation(),
         NotificationFilterAutomation(),
-        AppBlockerAutomation()
+        AppBlockerAutomation(),
+        DisplayComfortAutomation(),
+        DndAutomation(),
+        PowerSaverAutomation()
     )
 
     fun byId(id: String): Automation? = all.find { it.id == id }

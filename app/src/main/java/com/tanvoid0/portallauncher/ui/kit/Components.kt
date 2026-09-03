@@ -442,13 +442,14 @@ fun EmptyState(
 /**
  * Frosted panel for anything drawn over the wallpaper — search field, glance card,
  * profile chips. One material, one alpha, instead of four components each guessing.
+ * `contentColor` is [Launcher.onGlass], so `Text` inside reads white without every
+ * call site applying [OnWallpaperTextStyle] itself.
  */
 @Composable
 fun GlassSurface(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     shape: Shape = MaterialTheme.shapes.large,
-    alpha: Float = GLASS_ALPHA,
     content: @Composable () -> Unit
 ) {
     if (onClick != null) {
@@ -456,14 +457,16 @@ fun GlassSurface(
             onClick = onClick,
             modifier = modifier.semantics(mergeDescendants = true) {},
             shape = shape,
-            color = glassColor(alpha),
+            color = glassColor(),
+            contentColor = Launcher.onGlass,
             content = content
         )
     } else {
         Surface(
             modifier = modifier,
             shape = shape,
-            color = glassColor(alpha),
+            color = glassColor(),
+            contentColor = Launcher.onGlass,
             content = content
         )
     }

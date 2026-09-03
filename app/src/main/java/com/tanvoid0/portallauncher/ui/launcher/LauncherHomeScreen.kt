@@ -667,7 +667,11 @@ internal fun AppIcon(
     }
 }
 
-/** Resolves the icon at real device density, off the main thread, only when composed. */
+/**
+ * Resolves the icon at real device density, off the main thread, only when composed.
+ * Keyed on [LauncherViewModel.iconShape] too, so changing that preference re-renders
+ * every visible cell instead of waiting for a restart.
+ */
 @Composable
 internal fun rememberAppIcon(
     app: LaunchableApp,
@@ -675,8 +679,9 @@ internal fun rememberAppIcon(
     size: Dp = ICON_SIZE
 ): ImageBitmap? {
     val sizePx = with(LocalDensity.current) { size.roundToPx() }
-    return produceState<ImageBitmap?>(null, app.key, sizePx) {
-        value = viewModel.loadIcon(app, sizePx)
+    val shape by viewModel.iconShape.collectAsState()
+    return produceState<ImageBitmap?>(null, app.key, sizePx, shape) {
+        value = viewModel.loadIcon(app, sizePx, shape)
     }.value
 }
 

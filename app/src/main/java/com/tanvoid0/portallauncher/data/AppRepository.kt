@@ -120,6 +120,20 @@ class AppRepository(private val context: Context) {
     }
 
     /**
+     * One-shot package names launchable in our own user, no work profile.
+     *
+     * For callers like [com.tanvoid0.portallauncher.automation.BackgroundAppTrimmer]
+     * that act on a package list rather than display one: [apps] enumerates every
+     * profile the device has, and a work-profile package cannot be acted on the same
+     * way as our own (killBackgroundProcesses only reaches our user, and the same
+     * package name can legitimately exist in both).
+     */
+    fun launchablePackageNames(): Set<String> =
+        runCatching { launcherApps.getActivityList(null, Process.myUserHandle()) }
+            .getOrDefault(emptyList())
+            .mapTo(mutableSetOf()) { it.componentName.packageName }
+
+    /**
      * Opens the system's app-info screen. Goes through [LauncherApps] rather than an
      * ACTION_APPLICATION_DETAILS_SETTINGS intent because that intent cannot target
      * another user, so it would silently do nothing for a work-profile app.
@@ -143,7 +157,7 @@ class AppRepository(private val context: Context) {
     fun canUninstall(app: LaunchableApp): Boolean = !app.isSystemApp && !app.isWorkProfile
 
     /**
-     * Resolves the icon drawable, badged if the app belongs to a work profile.
+     * Resolves the icon drawable, unbadged — see [badge] for the work-profile overlay.
      * Call off the main thread — rendering an adaptive icon is not free.
      *
      * Not memoised here: [IconCache] sits in front of this and caches the rasterised
@@ -155,13 +169,19 @@ class AppRepository(private val context: Context) {
             .getOrDefault(emptyList())
             .firstOrNull { it.componentName.className == app.activityName }
             ?: return null
-        val icon = info.getIcon(0) ?: return null
-        return if (app.isWorkProfile) {
-            context.packageManager.getUserBadgedIcon(icon, app.user)
-        } else {
-            icon
-        }
+        return info.getIcon(0)
     }
+
+    /**
+     * The work-profile badge overlay for [icon], or [icon] unchanged for the primary
+     * profile. A separate step from [loadIcon] on purpose: [IconCache] must mask the
+     * raw adaptive icon to the user's chosen shape *before* calling this — `getUserBadgedIcon`
+     * returns a plain wrapper drawable, not an `AdaptiveIconDrawable`, so badging first
+     * would leave nothing left for the masker to clip and every work app would lose
+     * its shape.
+     */
+    fun badge(icon: Drawable, app: LaunchableApp): Drawable =
+        if (app.isWorkProfile) context.packageManager.getUserBadgedIcon(icon, app.user) else icon
 
     /**
      * Launches via [LauncherApps.startMainActivity] rather than a plain
