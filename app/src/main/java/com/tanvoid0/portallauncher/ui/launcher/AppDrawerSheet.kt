@@ -194,24 +194,6 @@ fun AppDrawerSheet(
             }
         }
 
-        // The category bar. Only when there is something to switch between, and never
-        // while searching — a ranked result list that is also filtered hides the match
-        // the user is typing towards.
-        if (categoryBarVisible && !searching) {
-            val present = remember(results, categoryByKey) {
-                AppCategory.entries.filter { category ->
-                    results.any { (categoryByKey[it.key] ?: AppCategory.Other) == category }
-                }
-            }
-            if (present.size > 1) {
-                CategoryBar(
-                    categories = present,
-                    selected = selectedCategory,
-                    onSelect = { selectedCategory = it }
-                )
-            }
-        }
-
         if (searching && results.isEmpty()) {
             EmptyState(
                 title = stringResource(R.string.no_apps_match),
@@ -233,7 +215,11 @@ fun AppDrawerSheet(
             ),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-            modifier = Modifier.fillMaxWidth()
+            // fill = false so a short drawer still hugs its content instead of
+            // stretching to the full sheet with the tab bar stranded at the bottom.
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f, fill = false)
         ) {
             if (searching) {
                 // Ranked order, no sections: the first cell is the hit Go would launch.
@@ -328,6 +314,25 @@ fun AppDrawerSheet(
                         onWallpaper = false
                     )
                 }
+            }
+        }
+
+        // Below the grid, where the reference launcher puts it and where a thumb
+        // already is. Only when there is something to switch between, and never while
+        // searching — a ranked result list that is also filtered hides the match the
+        // user is typing towards.
+        if (categoryBarVisible && !searching) {
+            val present = remember(results, categoryByKey) {
+                AppCategory.entries.filter { category ->
+                    results.any { (categoryByKey[it.key] ?: AppCategory.Other) == category }
+                }
+            }
+            if (present.size > 1) {
+                CategoryBar(
+                    categories = present,
+                    selected = selectedCategory,
+                    onSelect = { selectedCategory = it }
+                )
             }
         }
     }
