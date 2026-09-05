@@ -1,5 +1,10 @@
 package com.tanvoid0.portallauncher.ui.launcher
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.provider.AlarmClock
+import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -26,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.GridView
@@ -58,14 +64,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.BuiltInProfiles
@@ -83,14 +90,20 @@ import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalRow
 import com.tanvoid0.portallauncher.ui.kit.Spacing
 import com.tanvoid0.portallauncher.ui.kit.glassColor
+import com.tanvoid0.portallauncher.ui.kit.profileTypeIcon
 import com.tanvoid0.portallauncher.widgets.WidgetPlacement
-import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 private val ICON_SIZE = 48.dp
-private val CELL_SIZE = 56.dp
+
+/** The square an icon sits in. Also the cap for a home cell's shrunken icon. */
+internal val CELL_SIZE = 56.dp
+
+/** Leading glyph on the active profile chip. Material's own FilterChip icon size. */
+private val CHIP_ICON = 18.dp
 
 /**
  * How far up you have to drag before the drawer opens. Well above the touch slop, so
@@ -197,6 +210,21 @@ fun LauncherHomeScreen(
                             selected = uiState.activeProfile?.id == profile.id,
                             onClick = { viewModel.setActiveProfile(profile.id) },
                             label = { Text(profile.name) },
+                            // Same icon the profile carries in the list and in setup, so
+                            // a chip is recognisable at a glance rather than a word to
+                            // read. Only on the selected chip: eight tinted glyphs in a
+                            // row is a toolbar, not a filter.
+                            leadingIcon = if (uiState.activeProfile?.id == profile.id) {
+                                {
+                                    Icon(
+                                        imageVector = profileTypeIcon(profile.type),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(CHIP_ICON)
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             // An unselected chip defaults to a transparent container,
                             // which puts its label straight onto the wallpaper and
                             // makes it unreadable over anything dark. Give it the same
@@ -392,6 +420,10 @@ private fun HomeOptionsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // The sheet opens partially expanded and its rows are taller than that
+                // — without this the last row is cut off at the screen edge with no way
+                // to reach it.
+                .verticalScroll(rememberScrollState())
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = Spacing.lg)
         ) {
@@ -521,32 +553,65 @@ private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The clock. Drawn straight onto the wallpaper rather than inside a frosted pill: the
+ * pill was a translucent slab across the top of whatever the user chose as their
+ * wallpaper, and [OnWallpaperTextStyle] already solves legibility without covering it.
+ *
+ * Ticks on the minute boundary, not every 60s from whenever the launcher happened to
+ * start — the old timer showed 11:04 for most of the minute the phone called 11:05.
+ */
 @Composable
 private fun AtAGlanceCard(modifier: Modifier = Modifier) {
-    // Re-formats every minute; the previous version formatted once and then showed
-    // yesterday's date forever.
-    val today by produceState(formatToday()) {
+    val context = LocalContext.current
+    val is24Hour = remember(context) { DateFormat.is24HourFormat(context) }
+    val now by produceState(Date(), is24Hour) {
         while (true) {
-            delay(60_000)
-            value = formatToday()
+            value = Date()
+            delay(millisToNextMinute())
         }
     }
-    GlassSurface(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = today,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+    val clockStyle = MaterialTheme.typography.displayLarge.merge(OnWallpaperTextStyle)
+    val dateStyle = MaterialTheme.typography.titleMedium.merge(OnWallpaperTextStyle)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            // Tapping the clock opens the clock app, the way every launcher's does.
+            // Nothing to do when the device ships no alarm app, which is why this is
+            // startActivitySafely rather than a bare startActivity.
+            .clickableCell(onClick = { context.openClockApp() })
+            .padding(vertical = Spacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = formatTime(now, is24Hour), style = clockStyle)
+        Text(text = formatToday(now), style = dateStyle)
     }
 }
 
-private fun formatToday(): String =
-    SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date())
+private fun formatTime(now: Date, is24Hour: Boolean): String =
+    SimpleDateFormat(if (is24Hour) "HH:mm" else "h:mm", Locale.getDefault()).format(now)
+
+private fun formatToday(now: Date): String =
+    SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(now)
+
+/** So the clock changes when the minute does, rather than 0–59s late. */
+private fun millisToNextMinute(): Long =
+    60_000L - (System.currentTimeMillis() % 60_000L)
+
+/**
+ * Not every device ships a clock, and one that does not must not crash the home
+ * screen. SHOW_ALARMS is the documented intent every clock app declares.
+ */
+private fun Context.openClockApp() {
+    try {
+        startActivity(
+            Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    } catch (_: ActivityNotFoundException) {
+        // No clock app installed. Leave the tap as a no-op.
+    }
+}
 
 @Composable
 private fun Dock(
@@ -619,7 +684,19 @@ internal fun AppIconCell(
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
     onWallpaper: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * One on the home grid, where the cell height is fixed by the grid size and a
+     * second line of label overflowed into the icons on the row below — every label
+     * on a full page was sliced in half. The drawer scrolls, so it keeps two.
+     */
+    labelLines: Int = 2,
+    /**
+     * Shrunk by the home grid so the whole cell — icon, gap and label — fits the slice
+     * of the screen the grid gives it. At the 4 x 5 default a full-height icon left the
+     * label hanging below the cell, where it was drawn over by the next row.
+     */
+    iconBox: Dp = CELL_SIZE
 ) {
     Column(
         modifier = modifier
@@ -629,7 +706,7 @@ internal fun AppIconCell(
     ) {
         // Null handlers: the enclosing cell already owns both gestures, so the icon
         // must not add a second target for the same app.
-        AppIcon(app = app, viewModel = viewModel, onClick = null, onLongClick = null)
+        AppIcon(app = app, viewModel = viewModel, onClick = null, onLongClick = null, box = iconBox)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = app.displayLabel,
@@ -639,7 +716,7 @@ internal fun AppIconCell(
                 MaterialTheme.typography.labelSmall
             },
             color = if (onWallpaper) Color.Unspecified else MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
+            maxLines = labelLines,
             overflow = TextOverflow.Ellipsis
         )
     }
@@ -655,12 +732,14 @@ internal fun AppIcon(
     viewModel: LauncherViewModel,
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    box: Dp = CELL_SIZE
 ) {
-    val icon = rememberAppIcon(app, viewModel)
+    val drawn = minOf(ICON_SIZE, box)
+    val icon = rememberAppIcon(app, viewModel, drawn)
     Box(
         modifier = modifier
-            .size(CELL_SIZE)
+            .size(box)
             .then(
                 if (onClick != null) Modifier.clickableCell(onClick, onLongClick) else Modifier
             ),
@@ -670,7 +749,7 @@ internal fun AppIcon(
             Image(
                 bitmap = icon,
                 contentDescription = if (onClick != null) app.displayLabel else null,
-                modifier = Modifier.size(ICON_SIZE)
+                modifier = Modifier.size(drawn)
             )
         } else {
             // Placeholder while the drawable rasterises, and fallback if it fails.

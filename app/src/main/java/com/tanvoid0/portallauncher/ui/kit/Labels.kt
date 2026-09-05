@@ -1,6 +1,16 @@
 package com.tanvoid0.portallauncher.ui.kit
 
 import androidx.annotation.StringRes
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.DoNotDisturbOn
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WorkOutline
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.ProfileType
@@ -41,3 +51,27 @@ val ProfileType.labelRes: Int
  */
 fun profileTypeLabelRes(stored: String): Int? =
     ProfileType.entries.find { it.name == stored }?.labelRes
+
+/**
+ * The face of a profile.
+ *
+ * Profiles are the launcher's own idea and they were being drawn as a radio list with
+ * nothing but a word on each row — the thing the reference launcher gives an icon to
+ * on every surface it appears on. One icon per type, used by the profile list, the
+ * home screen's chip row and first-run setup, so a profile looks the same everywhere.
+ */
+val ProfileType.icon: ImageVector
+    get() = when (this) {
+        ProfileType.Study -> Icons.Default.School
+        ProfileType.Social -> Icons.Default.Forum
+        ProfileType.Productivity -> Icons.Default.WorkOutline
+        ProfileType.Gaming -> Icons.Default.SportsEsports
+        ProfileType.Focus -> Icons.Default.DoNotDisturbOn
+        ProfileType.Wellness -> Icons.Default.FavoriteBorder
+        ProfileType.Driving -> Icons.Default.DirectionsCar
+        ProfileType.Custom -> Icons.Default.Tune
+    }
+
+/** Icon for a profile's stored `type` string. See [profileTypeLabelRes] for the caveat. */
+fun profileTypeIcon(stored: String): ImageVector =
+    ProfileType.entries.find { it.name == stored }?.icon ?: Icons.Default.Tune

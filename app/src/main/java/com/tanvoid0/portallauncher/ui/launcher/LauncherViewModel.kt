@@ -44,8 +44,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** How many category-matched apps fill the home screen before the user changes anything. */
-const val HOME_FALLBACK_COUNT = 8
+/**
+ * How many category-matched apps fill the home screen before the user changes anything.
+ *
+ * A floor, not the number: the real limit is however many cells the grid has, so the
+ * default home screen fills the page it is drawn on. It used to be a flat 8 against a
+ * 4 x 5 grid, which left twelve empty cells under the icons on every fresh install.
+ */
+const val HOME_FALLBACK_MIN = 8
 
 data class LauncherUiState(
     val activeProfile: ProfileEntity? = null,
@@ -173,8 +179,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val appsFlow = combine(
         appRepository.apps,
         overridesFlow,
-        aiCategories
-    ) { apps, overrides, ai -> applyOverrides(apps, overrides) to ai }
+        aiCategories,
+        usageCountByKeyFlow
+    ) { apps, overrides, ai, usage -> Apps(applyOverrides(apps, overrides), ai, usage) }
+
+    private data class Apps(
+        val apps: List<LaunchableApp>,
+        val ai: Map<String, AppCategory>,
+        val usageCountByKey: Map<String, Int>
+    )
 
     /** The stored layout, the grid it sits on, and whether it is the user's own. */
     private val layoutFlow = combine(
@@ -200,9 +213,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         visibilityConfigFlow,
         appsFlow,
         layoutFlow
-    ) { active, profiles, visibilityConfig, (apps, ai), layout ->
+    ) { active, profiles, visibilityConfig, (apps, ai, usage), layout ->
         val categoryByKey = apps.associate { it.key to AppCategorizer.categoryFor(it, ai) }
+        // Most-launched first. The default home screen used to be whatever came first
+        // alphabetically, which on a real phone means AccuWeather and AdAway rather
+        // than anything the user opens. Ties and a fresh install with no history
+        // fall back to the label, so the order is still stable and predictable.
         val categoryFiltered = filterAppsByProfile(apps, active, visibilityConfig, ai)
+            .sortedWith(
+                compareByDescending<LaunchableApp> { usage[it.key] ?: 0 }
+                    .thenBy { it.label.lowercase() }
+            )
         val entries = resolveHomeEntries(
             cells = layout.cells,
             installed = apps,
@@ -210,7 +231,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             liveWidgetIds = layout.liveWidgetIds,
             profileId = active?.id.orEmpty(),
             grid = layout.grid,
-            fallbackLimit = HOME_FALLBACK_COUNT,
+            fallbackLimit = maxOf(HOME_FALLBACK_MIN, layout.grid.columns * layout.grid.rows),
             isCustomised = layout.isCustomised
         )
         LauncherUiState(

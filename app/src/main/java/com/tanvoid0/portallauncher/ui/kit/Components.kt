@@ -68,6 +68,11 @@ private val EMPTY_STATE_ICON = 40.dp
  * The action is a real overlay. Profiles previously placed its FAB *after* a weighted
  * `LazyColumn` inside a `Column`, which is a static button pinned to the bottom-left,
  * not a floating one.
+ *
+ * Paints its own background. MainActivity's root Surface is transparent so the home
+ * screen can show the wallpaper through the window (windowShowWallpaper), and every
+ * screen that is *not* the home screen inherited that — Settings, Profiles and Edit
+ * profile drew their text straight onto the user's wallpaper and were unreadable.
  */
 @Composable
 fun PortalScreen(
@@ -77,7 +82,11 @@ fun PortalScreen(
     floatingAction: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -199,22 +208,7 @@ fun PortalRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
-            if (icon != null) {
-                Box(
-                    modifier = Modifier
-                        .size(ROW_ICON_BOX)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.secondaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(ROW_ICON)
-                    )
-                }
-            }
+            if (icon != null) RowIcon(icon)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs / 2)
@@ -250,6 +244,7 @@ fun SelectableRow(
     onSelect: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    icon: ImageVector? = null,
     trailing: @Composable (() -> Unit)? = null
 ) {
     Surface(
@@ -271,6 +266,7 @@ fun SelectableRow(
         ) {
             // No onClick of its own: the row carries the click.
             RadioButton(selected = selected, onClick = null)
+            if (icon != null) RowIcon(icon)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs / 2)
@@ -468,6 +464,25 @@ fun GlassSurface(
             color = glassColor(),
             contentColor = Launcher.onGlass,
             content = content
+        )
+    }
+}
+
+/** The tinted square a row's leading icon sits in. Shared by [PortalRow] and [SelectableRow]. */
+@Composable
+private fun RowIcon(icon: ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(ROW_ICON_BOX)
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.secondaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.size(ROW_ICON)
         )
     }
 }

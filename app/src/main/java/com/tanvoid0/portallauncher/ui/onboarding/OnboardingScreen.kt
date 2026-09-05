@@ -60,6 +60,7 @@ import com.tanvoid0.portallauncher.data.BuiltInProfiles
 import com.tanvoid0.portallauncher.data.DefaultHomeStatus
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.SelectableRow
+import com.tanvoid0.portallauncher.ui.kit.profileTypeIcon
 import com.tanvoid0.portallauncher.ui.kit.Spacing
 
 /**
@@ -92,7 +93,16 @@ fun OnboardingScreen(
 ) {
     val context = LocalContext.current
     val steps = remember { SetupStep.entries }
-    var stepIndex by rememberSaveable { mutableIntStateOf(0) }
+    // Seeded from the platform, not from zero. Granting the home role restarts the
+    // task — the system launches the new home app — so setup came back with its saved
+    // state gone and put the user on step 1 again, having already done step 2. Reading
+    // the role instead means the flow resumes where the real state says it is, which
+    // also covers someone who set the home app from system settings.
+    var stepIndex by rememberSaveable {
+        mutableIntStateOf(
+            if (DefaultHomeStatus.isDefaultHome(context)) SetupStep.Profile.ordinal else 0
+        )
+    }
     val step = steps[stepIndex]
 
     var isDefaultHome by remember { mutableStateOf(DefaultHomeStatus.isDefaultHome(context)) }
@@ -332,6 +342,7 @@ private fun ProfileStep(viewModel: SetupViewModel) {
         profiles.forEach { profile ->
             SelectableRow(
                 title = profile.name,
+                icon = profileTypeIcon(profile.type),
                 selected = profile.id == selectedId,
                 onSelect = { viewModel.selectProfile(profile.id) }
             )

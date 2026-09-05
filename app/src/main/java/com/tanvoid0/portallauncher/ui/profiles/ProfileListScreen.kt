@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.ui.kit.EmptyState
+import com.tanvoid0.portallauncher.ui.kit.profileTypeIcon
 import com.tanvoid0.portallauncher.ui.kit.profileTypeLabelRes
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalScreen
@@ -91,12 +92,17 @@ fun ProfileListScreen(
                             // Previously the row edited and the radio button activated,
                             // which put two unrelated actions on one row with no label
                             // saying which was which.
+                            // The stored type is an enum name; show it localized.
+                            // A backup can hold anything, so fall back to the raw text.
+                            val typeLabel = profileTypeLabelRes(profile.type)
+                                ?.let { stringResource(it) } ?: profile.type
                             SelectableRow(
                                 title = profile.name,
-                                // The stored type is an enum name; show it localized.
-                                // A backup can hold anything, so fall back to the raw text.
-                                subtitle = profileTypeLabelRes(profile.type)
-                                    ?.let { stringResource(it) } ?: profile.type,
+                                // Every built-in profile is named after its own type, so
+                                // this line read "Study" under "Study" on seven rows out
+                                // of eight. Worth saying only when it says something.
+                                subtitle = typeLabel.takeIf { it != profile.name },
+                                icon = profileTypeIcon(profile.type),
                                 selected = profile.id == activeId,
                                 onSelect = { viewModel.setActiveProfile(profile.id) },
                                 trailing = {

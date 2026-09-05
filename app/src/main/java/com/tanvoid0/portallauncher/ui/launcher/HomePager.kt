@@ -27,12 +27,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeEntry
@@ -187,7 +189,14 @@ fun HomePager(
                                 onClick = null,
                                 onLongClick = null,
                                 onWallpaper = true,
-                                modifier = Modifier.align(Alignment.Center)
+                                labelLines = 1,
+                                iconBox = iconBoxFor(cellHeight),
+                                // A cell is a fixed slice of the grid and its content
+                                // must stay inside it — a long label used to draw over
+                                // the icons on the next row rather than being cut.
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .clipToBounds()
                             )
 
                             is HomeEntry.Widget -> WidgetCell(
@@ -286,3 +295,15 @@ private fun PageDots(count: Int, current: Int, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/**
+ * How big an icon may be in a cell this tall: whatever is left once the one-line label
+ * and the cell's own padding have their share, capped at the normal size and floored
+ * so a very tight grid still shows something tappable.
+ */
+private fun iconBoxFor(cellHeight: Dp): Dp =
+    (cellHeight - CELL_LABEL_SPACE).coerceIn(MIN_ICON_BOX, CELL_SIZE)
+
+/** One line of labelSmall, the gap above it, and AppIconCell's own 4dp padding. */
+private val CELL_LABEL_SPACE = 30.dp
+private val MIN_ICON_BOX = 32.dp
