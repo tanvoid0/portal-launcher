@@ -50,6 +50,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.FilterChip
+import com.tanvoid0.portallauncher.ui.kit.icon
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.DrawerSortMode
@@ -95,6 +100,10 @@ fun AppDrawerSheet(
     val query = remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     var showOptions by remember { mutableStateOf(false) }
+    // Null is "All". Not remembered across openings on purpose: the drawer is opened to
+    // find something, and reopening it already filtered to a tab chosen minutes ago
+    // reads as apps having gone missing.
+    var selectedCategory by remember { mutableStateOf<AppCategory?>(null) }
 
     // Only when the user arrived via the search pill. Opening the keyboard on a swipe
     // up from the home screen would cover the apps they came to look at.
@@ -107,6 +116,8 @@ fun AppDrawerSheet(
     // Clears the search first — losing what you typed along with the drawer itself
     // would make "go back" behave like "start over".
     BackHandler(enabled = searching) { query.value = "" }
+    // Same idea one level out: back off a category tab before back closes the drawer.
+    BackHandler(enabled = !searching && selectedCategory != null) { selectedCategory = null }
     // Search ranking already means something (best match first); the sort toggle only
     // applies once the user is browsing rather than typing.
     val results = remember(searchResults, searching, sortMode, usageCountByKey) {
@@ -179,6 +190,24 @@ fun AppDrawerSheet(
                 Icon(
                     Icons.Default.MoreVert,
                     contentDescription = stringResource(R.string.drawer_options)
+                )
+            }
+        }
+
+        // The category bar. Only when there is something to switch between, and never
+        // while searching — a ranked result list that is also filtered hides the match
+        // the user is typing towards.
+        if (categoryBarVisible && !searching) {
+            val present = remember(results, categoryByKey) {
+                AppCategory.entries.filter { category ->
+                    results.any { (categoryByKey[it.key] ?: AppCategory.Other) == category }
+                }
+            }
+            if (present.size > 1) {
+                CategoryBar(
+                    categories = present,
+                    selected = selectedCategory,
+                    onSelect = { selectedCategory = it }
                 )
             }
         }
@@ -258,6 +287,33 @@ fun AppDrawerSheet(
             // shuffling with whatever happens to be installed. Other last: it is the
             // "we could not place these" bucket, not a category anyone looks for first.
             val grouped = results.groupBy { categoryByKey[it.key] ?: AppCategory.Other }
+            val chosen = selectedCategory
+            if (chosen != null) {
+                // One tab: the strip above already names it, so no header repeats it.
+                val inCategory = grouped[chosen].orEmpty()
+                if (inCategory.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        EmptyState(
+                            title = stringResource(chosen.labelRes),
+                            body = stringResource(R.string.category_empty_body),
+                            icon = Icons.Default.SearchOff,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = Spacing.xxl)
+                        )
+                    }
+                }
+                items(inCategory, key = { it.key }) { app ->
+                    AppIconCell(
+                        app = app,
+                        viewModel = viewModel,
+                        onClick = { onLaunch(app) },
+                        onLongClick = { onLongPress(app) },
+                        onWallpaper = false
+                    )
+                }
+                return@LazyVerticalGrid
+            }
             AppCategory.entries.forEach { category ->
                 val inCategory = grouped[category] ?: return@forEach
                 item(span = { GridItemSpan(maxLineSpan) }, key = "header-${category.id}") {
@@ -353,3 +409,50 @@ private fun DrawerOptionsSheet(
     }
 }
 
+/**
+ * The drawer's category tabs.
+ *
+ * The reference launcher's closest analog to a profile: a strip of named, icon-labelled
+ * groups that filters what the grid shows. Portal already sorted the drawer into these
+ * categories but only as headings you had to scroll past — seven sections deep, "where
+ * are my games" was a scroll, not a tap.
+ */
+@Composable
+private fun CategoryBar(
+    categories: List<AppCategory>,
+    selected: AppCategory?,
+    onSelect: (AppCategory?) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.gutter, vertical = Spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        FilterChip(
+            selected = selected == null,
+            onClick = { onSelect(null) },
+            label = { Text(stringResource(R.string.category_all)) }
+        )
+        categories.forEach { category ->
+            FilterChip(
+                selected = selected == category,
+                // Tapping the tab you are on goes back to everything, so the strip
+                // never becomes a state you can only leave with the back gesture.
+                onClick = { onSelect(if (selected == category) null else category) },
+                label = { Text(stringResource(category.labelRes)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = category.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(CATEGORY_CHIP_ICON)
+                    )
+                }
+            )
+        }
+    }
+}
+
+/** Material's own FilterChip leading-icon size. */
+private val CATEGORY_CHIP_ICON = 18.dp

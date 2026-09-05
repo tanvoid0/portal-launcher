@@ -2,6 +2,7 @@ package com.tanvoid0.portallauncher.ui.kit
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -75,3 +76,19 @@ val ProfileType.icon: ImageVector
 /** Icon for a profile's stored `type` string. See [profileTypeLabelRes] for the caveat. */
 fun profileTypeIcon(stored: String): ImageVector =
     ProfileType.entries.find { it.name == stored }?.icon ?: Icons.Default.Tune
+
+/**
+ * The face of a category, for the drawer's tab strip. Same idea as [ProfileType.icon]:
+ * the reference launcher labels its category tabs with a glyph, and a strip of seven
+ * words is a menu where a strip of seven icons is a control.
+ */
+val AppCategory.icon: ImageVector
+    get() = when (this) {
+        AppCategory.Study -> Icons.Default.School
+        AppCategory.Social -> Icons.Default.Forum
+        AppCategory.Productivity -> Icons.Default.WorkOutline
+        AppCategory.Gaming -> Icons.Default.SportsEsports
+        AppCategory.Wellness -> Icons.Default.FavoriteBorder
+        AppCategory.Driving -> Icons.Default.DirectionsCar
+        AppCategory.Other -> Icons.Default.Apps
+    }

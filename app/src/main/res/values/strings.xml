@@ -41,6 +41,9 @@
     <string name="category_wellness">Wellness</string>
     <string name="category_driving">Driving</string>
     <string name="category_other">Everything else</string>
+    <!-- The drawer's category tab strip: the tab that clears the filter. -->
+    <string name="category_all">All</string>
+    <string name="category_empty_body">Nothing is in this category yet. Long-press an app and choose Category to move it here.</string>
 
     <!-- Profile types -->
     <string name="type_study">Study</string>
@@ -118,7 +121,11 @@
     <string name="automations">Automations</string>
     <string name="grant">Grant</string>
     <string name="intensity">Intensity</string>
-    <string name="system_greyscale_hint">Whole device: Developer options → Simulate colour space</string>
+    <string name="system_greyscale_on">Whole device greyscale is on while this profile is active.</string>
+    <string name="system_greyscale_title">Grey the whole device</string>
+    <string name="system_greyscale_body">Portal can grey everything the screen shows, other apps included — but Android only allows that after a one-off grant from a computer. Turn on USB debugging, plug the phone in, and run this once. It survives reboots.</string>
+    <string name="copy_command">Copy command</string>
+    <string name="command_copied">Copied</string>
     <string name="apps_to_hold_back">Apps to hold back</string>
     <string name="apps_to_hold_back_empty">None chosen yet — pick the apps this profile should quiet</string>
     <string name="apps_to_block">Apps to block</string>
@@ -149,7 +156,7 @@
 
     <!-- Automations -->
     <string name="greyscale_title">Greyscale</string>
-    <string name="greyscale_summary">Removes colour from Portal\'s own screens. For the whole device, Portal can show you where the system setting is.</string>
+    <string name="greyscale_summary">Removes colour from Portal\'s own screens, and from the whole device once granted over ADB.</string>
     <string name="notification_filter_title">Hold back notifications</string>
     <string name="notification_filter_summary">Snoozes notifications the active profile does not want. They come back when the profile changes.</string>
     <string name="notification_filter_needs_access">Portal needs notification access to hold notifications back. It reads which app sent a notification, on the device — notification contents are never stored or sent anywhere.</string>
