@@ -10,6 +10,9 @@ import com.tanvoid0.portallauncher.ai.AiStatus
 import com.tanvoid0.portallauncher.data.AiCategoryEntity
 import com.tanvoid0.portallauncher.data.AppCategorizer
 import com.tanvoid0.portallauncher.data.BackupCodec
+import com.tanvoid0.portallauncher.data.ColorSource
+import com.tanvoid0.portallauncher.data.ThemeMode
+import com.tanvoid0.portallauncher.ui.kit.IconShape
 import com.tanvoid0.portallauncher.data.RestoreResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -53,6 +56,38 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     val assistantEnabled: StateFlow<Boolean> = preferences.aiAssistantEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    // Appearance. Every one of these was already persisted and already read at
+    // startup; none of them had a control anywhere in the app, so the launcher shipped
+    // a theme picker, an accent-colour source and five icon shapes that nobody could
+    // reach. This is the missing half.
+    val themeMode: StateFlow<ThemeMode> = preferences.themeMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.SYSTEM)
+
+    val colorSource: StateFlow<ColorSource> = preferences.colorSource
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ColorSource.PORTAL)
+
+    val iconShape: StateFlow<IconShape> = preferences.iconShape
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IconShape.System)
+
+    val homeLabels: StateFlow<Boolean> = preferences.homeLabels
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { preferences.setThemeMode(mode) }
+    }
+
+    fun setColorSource(source: ColorSource) {
+        viewModelScope.launch { preferences.setColorSource(source) }
+    }
+
+    fun setIconShape(shape: IconShape) {
+        viewModelScope.launch { preferences.setIconShape(shape) }
+    }
+
+    fun setHomeLabels(enabled: Boolean) {
+        viewModelScope.launch { preferences.setHomeLabels(enabled) }
+    }
 
     init {
         viewModelScope.launch {

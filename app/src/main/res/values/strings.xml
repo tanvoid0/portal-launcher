@@ -33,6 +33,31 @@
     <string name="no_apps_match">No apps match</string>
     <string name="no_apps_match_body">Nothing installed matches "%1$s".</string>
 
+    <!-- Appearance -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_system">System</string>
+    <string name="wallpaper">Wallpaper</string>
+    <string name="wallpaper_subtitle">Open the system wallpaper picker</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="accent">Accent colour</string>
+    <string name="accent_portal">Portal</string>
+    <string name="accent_wallpaper">Wallpaper</string>
+    <string name="accent_wallpaper_unsupported">Wallpaper colours need Android 12 or newer.</string>
+    <string name="icon_shape">Icon shape</string>
+    <string name="icon_shape_system">System</string>
+    <string name="icon_shape_circle">Circle</string>
+    <string name="icon_shape_squircle">Squircle</string>
+    <string name="icon_shape_rounded">Rounded</string>
+    <string name="icon_shape_teardrop">Teardrop</string>
+    <string name="home_labels">Labels on home</string>
+    <string name="home_labels_subtitle">Show the app name under each icon</string>
+    <string name="default_home_app">Default home app</string>
+    <string name="default_home_app_on">Portal opens when you press home</string>
+    <string name="default_home_app_off">Another launcher opens when you press home</string>
+
     <!-- Categories -->
     <string name="category_study">Study</string>
     <string name="category_social">Social</string>

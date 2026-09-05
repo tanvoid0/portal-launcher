@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.R
+import com.tanvoid0.portallauncher.automation.greyscale
 import com.tanvoid0.portallauncher.data.BuiltInProfiles
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
@@ -91,6 +92,7 @@ import com.tanvoid0.portallauncher.ui.kit.PortalRow
 import com.tanvoid0.portallauncher.ui.kit.Spacing
 import com.tanvoid0.portallauncher.ui.kit.glassColor
 import com.tanvoid0.portallauncher.ui.kit.profileTypeIcon
+import com.tanvoid0.portallauncher.ui.theme.LocalGreyscaleSaturation
 import com.tanvoid0.portallauncher.widgets.WidgetPlacement
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -292,6 +294,7 @@ fun LauncherHomeScreen(
                 HomePager(
                     entries = homeEntries,
                     grid = uiState.grid,
+                    showLabels = uiState.homeLabels,
                     pageCount = uiState.pageCount,
                     viewModel = viewModel,
                     onOpenMenu = { entry ->
@@ -696,7 +699,8 @@ internal fun AppIconCell(
      * of the screen the grid gives it. At the 4 x 5 default a full-height icon left the
      * label hanging below the cell, where it was drawn over by the next row.
      */
-    iconBox: Dp = CELL_SIZE
+    iconBox: Dp = CELL_SIZE,
+    showLabel: Boolean = true
 ) {
     Column(
         modifier = modifier
@@ -707,6 +711,7 @@ internal fun AppIconCell(
         // Null handlers: the enclosing cell already owns both gestures, so the icon
         // must not add a second target for the same app.
         AppIcon(app = app, viewModel = viewModel, onClick = null, onLongClick = null, box = iconBox)
+        if (!showLabel) return@Column
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = app.displayLabel,
@@ -746,10 +751,15 @@ internal fun AppIcon(
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
+            // The theme desaturates its own colours; an app icon is somebody else's
+            // bitmap, so it needs the draw-time filter. Only here — putting it on the
+            // whole window would grey the themed colours a second time.
             Image(
                 bitmap = icon,
                 contentDescription = if (onClick != null) app.displayLabel else null,
-                modifier = Modifier.size(drawn)
+                modifier = Modifier
+                    .size(drawn)
+                    .greyscale(LocalGreyscaleSaturation.current)
             )
         } else {
             // Placeholder while the drawable rasterises, and fallback if it fails.

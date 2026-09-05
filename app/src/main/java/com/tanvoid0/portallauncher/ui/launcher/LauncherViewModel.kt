@@ -84,7 +84,9 @@ data class LauncherUiState(
     /** Whether the drawer groups apps under category headers at all. */
     val categoryBarVisible: Boolean = true,
     /** Launch count per app key, for [DrawerSortMode.MOST_USED]. Absent means never launched. */
-    val usageCountByKey: Map<String, Int> = emptyMap()
+    val usageCountByKey: Map<String, Int> = emptyMap(),
+    /** Whether the home grid draws a name under each icon. The drawer always does. */
+    val homeLabels: Boolean = true
 )
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -160,15 +162,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val drawerPrefsFlow = combine(
         preferencesRepository.drawerSortMode,
         preferencesRepository.categoryBarVisible,
-        usageCountByKeyFlow
-    ) { sortMode, categoryBarVisible, usageCountByKey ->
-        DrawerPrefs(sortMode, categoryBarVisible, usageCountByKey)
+        usageCountByKeyFlow,
+        preferencesRepository.homeLabels
+    ) { sortMode, categoryBarVisible, usageCountByKey, homeLabels ->
+        DrawerPrefs(sortMode, categoryBarVisible, usageCountByKey, homeLabels)
     }
 
     private data class DrawerPrefs(
         val sortMode: DrawerSortMode,
         val categoryBarVisible: Boolean,
-        val usageCountByKey: Map<String, Int>
+        val usageCountByKey: Map<String, Int>,
+        val homeLabels: Boolean
     )
 
     /**
@@ -257,7 +261,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         state.copy(
             drawerSortMode = prefs.sortMode,
             categoryBarVisible = prefs.categoryBarVisible,
-            usageCountByKey = prefs.usageCountByKey
+            usageCountByKey = prefs.usageCountByKey,
+            homeLabels = prefs.homeLabels
         )
     }.stateIn(
         scope = viewModelScope,

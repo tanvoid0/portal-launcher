@@ -69,6 +69,7 @@ private const val EDGE_FRACTION = 0.12f
 fun HomePager(
     entries: List<HomeEntry>,
     grid: GridSize,
+    showLabels: Boolean,
     pageCount: Int,
     viewModel: LauncherViewModel,
     onOpenMenu: (HomeEntry) -> Unit,
@@ -190,7 +191,8 @@ fun HomePager(
                                 onLongClick = null,
                                 onWallpaper = true,
                                 labelLines = 1,
-                                iconBox = iconBoxFor(cellHeight),
+                                showLabel = showLabels,
+                                iconBox = iconBoxFor(cellHeight, showLabels),
                                 // A cell is a fixed slice of the grid and its content
                                 // must stay inside it — a long label used to draw over
                                 // the icons on the next row rather than being cut.
@@ -301,8 +303,9 @@ private fun PageDots(count: Int, current: Int, modifier: Modifier = Modifier) {
  * and the cell's own padding have their share, capped at the normal size and floored
  * so a very tight grid still shows something tappable.
  */
-private fun iconBoxFor(cellHeight: Dp): Dp =
-    (cellHeight - CELL_LABEL_SPACE).coerceIn(MIN_ICON_BOX, CELL_SIZE)
+private fun iconBoxFor(cellHeight: Dp, showLabel: Boolean): Dp =
+    (cellHeight - if (showLabel) CELL_LABEL_SPACE else Spacing.sm)
+        .coerceIn(MIN_ICON_BOX, CELL_SIZE)
 
 /** One line of labelSmall, the gap above it, and AppIconCell's own 4dp padding. */
 private val CELL_LABEL_SPACE = 30.dp

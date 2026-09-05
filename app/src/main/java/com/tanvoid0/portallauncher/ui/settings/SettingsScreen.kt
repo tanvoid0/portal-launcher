@@ -1,6 +1,23 @@
 package com.tanvoid0.portallauncher.ui.settings
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import androidx.annotation.StringRes
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Wallpaper
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.tanvoid0.portallauncher.data.ColorSource
+import com.tanvoid0.portallauncher.data.DefaultHomeStatus
+import com.tanvoid0.portallauncher.data.ThemeMode
+import com.tanvoid0.portallauncher.ui.kit.ChoiceChips
+import com.tanvoid0.portallauncher.ui.kit.IconShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,7 +67,20 @@ fun SettingsScreen(
     val assistantEnabled by viewModel.assistantEnabled.collectAsStateWithLifecycle()
     val working by viewModel.working.collectAsStateWithLifecycle()
     val backupMessage by viewModel.backupMessage.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val colorSource by viewModel.colorSource.collectAsStateWithLifecycle()
+    val iconShape by viewModel.iconShape.collectAsStateWithLifecycle()
+    val homeLabels by viewModel.homeLabels.collectAsStateWithLifecycle()
     var showAssistant by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    // Re-read on resume: the role is granted in the system's own UI, which reports
+    // nothing back.
+    var isDefaultHome by remember { mutableStateOf(DefaultHomeStatus.isDefaultHome(context)) }
+    LifecycleResumeEffect(Unit) {
+        isDefaultHome = DefaultHomeStatus.isDefaultHome(context)
+        onPauseOrDispose { }
+    }
 
     // The system document picker, so Portal never decides where a file goes and needs no
     // storage permission at all.
@@ -153,6 +183,83 @@ fun SettingsScreen(
                     }
                 )
             }
+            PortalGroup(title = stringResource(R.string.settings_appearance)) {
+                PortalRow(
+                    title = stringResource(R.string.wallpaper),
+                    subtitle = stringResource(R.string.wallpaper_subtitle),
+                    icon = Icons.Default.Wallpaper,
+                    // The system picker, not one of our own: the wallpaper belongs to
+                    // the device, and every launcher that tries to own it ends up with
+                    // a worse gallery than the one already installed.
+                    onClick = { context.startWallpaperPicker() }
+                )
+                ChoiceRow(title = stringResource(R.string.theme)) {
+                    ChoiceChips(
+                        options = ThemeMode.entries,
+                        selected = themeMode,
+                        onSelect = viewModel::setThemeMode,
+                        label = { context.getString(it.labelRes) }
+                    )
+                }
+                ChoiceRow(
+                    title = stringResource(R.string.accent),
+                    // Dynamic colour is an Android 12 feature. Saying so beats a
+                    // control that silently does nothing on an older phone.
+                    subtitle = if (dynamicColorSupported) {
+                        null
+                    } else {
+                        stringResource(R.string.accent_wallpaper_unsupported)
+                    }
+                ) {
+                    ChoiceChips(
+                        options = if (dynamicColorSupported) {
+                            ColorSource.entries
+                        } else {
+                            listOf(ColorSource.PORTAL)
+                        },
+                        selected = colorSource,
+                        onSelect = viewModel::setColorSource,
+                        label = { context.getString(it.labelRes) },
+                        perRow = 2
+                    )
+                }
+                ChoiceRow(title = stringResource(R.string.icon_shape)) {
+                    ChoiceChips(
+                        options = IconShape.entries,
+                        selected = iconShape,
+                        onSelect = viewModel::setIconShape,
+                        label = { context.getString(it.labelRes) }
+                    )
+                }
+                PortalRow(
+                    title = stringResource(R.string.home_labels),
+                    subtitle = stringResource(R.string.home_labels_subtitle),
+                    icon = Icons.Default.TextFields,
+                    trailing = {
+                        Switch(checked = homeLabels, onCheckedChange = viewModel::setHomeLabels)
+                    }
+                )
+            }
+            PortalGroup(title = stringResource(R.string.settings_system)) {
+                // The way back if the user ever points home at another launcher. There
+                // was none: setup asked once and settings never mentioned it again.
+                PortalRow(
+                    title = stringResource(R.string.default_home_app),
+                    subtitle = stringResource(
+                        if (isDefaultHome) {
+                            R.string.default_home_app_on
+                        } else {
+                            R.string.default_home_app_off
+                        }
+                    ),
+                    icon = Icons.Default.Home,
+                    onClick = if (isDefaultHome) {
+                        null
+                    } else {
+                        { context.requestDefaultHome() }
+                    }
+                )
+            }
             PortalGroup(title = stringResource(R.string.settings_backup)) {
                 PortalRow(
                     title = stringResource(R.string.back_up),
@@ -207,4 +314,83 @@ private fun assistantSummaryRes(status: AiStatus, enabled: Boolean, working: Boo
     status == AiStatus.Downloadable -> R.string.ai_assistant_needs_download
     status == AiStatus.Downloading -> R.string.ai_downloading
     else -> R.string.ai_assistant_on
+}
+
+/**
+ * A [PortalRow]-shaped slot for a control that is wider than a trailing widget — a
+ * chip group, here. Same surface and padding, so a row of chips sits inside a
+ * [PortalGroup] without looking like it escaped from another screen.
+ */
+@Composable
+private fun ChoiceRow(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RectangleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            content()
+        }
+    }
+}
+
+@get:StringRes
+private val ThemeMode.labelRes: Int
+    get() = when (this) {
+        ThemeMode.SYSTEM -> R.string.theme_system
+        ThemeMode.LIGHT -> R.string.theme_light
+        ThemeMode.DARK -> R.string.theme_dark
+    }
+
+@get:StringRes
+private val ColorSource.labelRes: Int
+    get() = when (this) {
+        ColorSource.PORTAL -> R.string.accent_portal
+        ColorSource.WALLPAPER -> R.string.accent_wallpaper
+    }
+
+@get:StringRes
+private val IconShape.labelRes: Int
+    get() = when (this) {
+        IconShape.System -> R.string.icon_shape_system
+        IconShape.Circle -> R.string.icon_shape_circle
+        IconShape.Squircle -> R.string.icon_shape_squircle
+        IconShape.Rounded -> R.string.icon_shape_rounded
+        IconShape.Teardrop -> R.string.icon_shape_teardrop
+    }
+
+/**
+ * Both of these open somebody else's screen, and a device that ships without it must
+ * not take the settings screen down with it.
+ */
+private fun Context.startWallpaperPicker() {
+    runCatching {
+        startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SET_WALLPAPER),
+                getString(R.string.wallpaper)
+            )
+        )
+    }
+}
+
+private fun Context.requestDefaultHome() {
+    runCatching {
+        startActivity(DefaultHomeStatus.requestIntent(this) ?: DefaultHomeStatus.homeSettingsIntent())
+    }
 }
