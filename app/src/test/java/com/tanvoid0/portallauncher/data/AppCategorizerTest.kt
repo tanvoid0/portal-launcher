@@ -16,15 +16,47 @@ class AppCategorizerTest {
     private val undefined = ApplicationInfo.CATEGORY_UNDEFINED
 
     @Test
-    fun `system category beats the keyword rules`() {
-        // The rules would call this Study — "docs" is in the Study list.
+    fun `the keyword rules beat the system category`() {
+        // The reason the order is this way round: on a real device CATEGORY_SOCIAL is
+        // mostly written by the installer out of Play's store taxonomy, not by the
+        // developer, and it lands on things that are plainly not social. Play Games
+        // declares it in its own manifest.
+        assertEquals(
+            AppCategory.Gaming,
+            AppCategorizer.categoryFor(
+                systemCategory = ApplicationInfo.CATEGORY_SOCIAL,
+                packageName = "com.google.android.play.games",
+                aiCategories = emptyMap()
+            )
+        )
+    }
+
+    @Test
+    fun `an app no rule knows keeps whatever the system says`() {
+        // The system category is demoted, not ignored: it is still better than nothing
+        // for the apps our keyword list has never heard of.
         assertEquals(
             AppCategory.Productivity,
             AppCategorizer.categoryFor(
                 systemCategory = ApplicationInfo.CATEGORY_PRODUCTIVITY,
-                packageName = "com.google.android.apps.docs",
+                packageName = "com.example.unknown.suite",
                 aiCategories = emptyMap()
             )
+        )
+    }
+
+    @Test
+    fun `a declared social app is not taken at its word`() {
+        // Play's installer override writes CATEGORY_SOCIAL onto browsers, VPNs and
+        // shopping apps. Unplaced is the honest answer; the real social apps are all
+        // in the keyword rules, which run first.
+        assertEquals(
+            AppCategory.Other,
+            AppCategorizer.categoryFor(ApplicationInfo.CATEGORY_SOCIAL, "com.android.chrome", emptyMap())
+        )
+        assertEquals(
+            AppCategory.Social,
+            AppCategorizer.categoryFor(ApplicationInfo.CATEGORY_SOCIAL, "com.instagram.android", emptyMap())
         )
     }
 
