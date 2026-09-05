@@ -32,6 +32,8 @@
     <!-- Drawer -->
     <string name="no_apps_match">No apps match</string>
     <string name="no_apps_match_body">Nothing installed matches "%1$s".</string>
+    <string name="search_the_web">Search the web for "%1$s"</string>
+    <string name="search_play_store">Search the Play Store for "%1$s"</string>
 
     <!-- Appearance -->
     <string name="settings_appearance">Appearance</string>

@@ -55,6 +55,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.FilterChip
 import com.tanvoid0.portallauncher.ui.kit.icon
+import android.app.SearchManager
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Shop
+import androidx.compose.ui.platform.LocalContext
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.DrawerSortMode
@@ -201,8 +207,9 @@ fun AppDrawerSheet(
                 icon = Icons.Default.SearchOff,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = Spacing.xxl)
+                    .padding(top = Spacing.xxl, bottom = Spacing.lg)
             )
+            SearchElsewhere(query = query.value)
             return@Column
         }
 
@@ -231,6 +238,11 @@ fun AppDrawerSheet(
                         onLongClick = { onLongPress(app) },
                         onWallpaper = false
                     )
+                }
+                // Under the matches, not instead of them: "the app I meant is not
+                // installed" is a normal outcome of a search that did find something.
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    SearchElsewhere(query = query.value)
                 }
                 return@LazyVerticalGrid
             }
@@ -461,3 +473,49 @@ private fun CategoryBar(
 
 /** Material's own FilterChip leading-icon size. */
 private val CATEGORY_CHIP_ICON = 18.dp
+
+/**
+ * Where a search goes when the answer is not an installed app.
+ *
+ * The drawer's search used to end at "No apps match", which is a dead end for the two
+ * things people actually mean by then: look this up, or go and get it. Both are plain
+ * intents — no permission, no API, and whichever browser and store the device already
+ * has. Rendered only if something can handle them, so a device with no browser does not
+ * get a row that fails when tapped.
+ */
+@Composable
+private fun SearchElsewhere(query: String) {
+    val context = LocalContext.current
+    val web = remember(query) { webSearchIntent(query) }
+    val store = remember(query) { playStoreIntent(query) }
+    val canWeb = remember(web) { web.resolveActivity(context.packageManager) != null }
+    val canStore = remember(store) { store.resolveActivity(context.packageManager) != null }
+    if (!canWeb && !canStore) return
+    PortalGroup {
+        if (canWeb) {
+            PortalRow(
+                title = stringResource(R.string.search_the_web, query),
+                icon = Icons.Default.Language,
+                onClick = { context.startActivity(web) }
+            )
+        }
+        if (canStore) {
+            PortalRow(
+                title = stringResource(R.string.search_play_store, query),
+                icon = Icons.Default.Shop,
+                onClick = { context.startActivity(store) }
+            )
+        }
+    }
+}
+
+private fun webSearchIntent(query: String): Intent =
+    Intent(Intent.ACTION_WEB_SEARCH).putExtra(SearchManager.QUERY, query)
+
+/**
+ * The `market:` scheme rather than a play.google.com URL, so this opens the store app
+ * instead of bouncing through a browser. Falls back to nothing where no store handles
+ * it — see the resolve check above.
+ */
+private fun playStoreIntent(query: String): Intent =
+    Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=" + Uri.encode(query)))
