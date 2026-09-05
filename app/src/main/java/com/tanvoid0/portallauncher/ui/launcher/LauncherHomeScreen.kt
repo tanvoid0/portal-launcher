@@ -77,6 +77,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.automation.greyscale
 import com.tanvoid0.portallauncher.data.BuiltInProfiles
+import com.tanvoid0.portallauncher.data.GestureAction
+import com.tanvoid0.portallauncher.data.LauncherGesture
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
 import com.tanvoid0.portallauncher.data.HomeEntry
@@ -148,6 +150,28 @@ fun LauncherHomeScreen(
     // Dock and drawer deliberately ignore the profile filter — see LauncherUiState.
     val dockApps = remember(uiState.allApps) { resolveDockApps(uiState.allApps) }
     val swipeThresholdPx = with(LocalDensity.current) { SWIPE_UP_THRESHOLD.toPx() }
+    val gestures by viewModel.gestureActions.collectAsState()
+
+    // One place every gesture goes through, so a binding means the same thing whichever
+    // gesture it is attached to.
+    val runGesture: (LauncherGesture) -> Unit = { gesture ->
+        when (gestures[gesture] ?: GestureAction.None) {
+            GestureAction.None -> Unit
+            GestureAction.AppDrawer -> {
+                drawerOpenedForSearch = false
+                appDrawerOpen = true
+            }
+            GestureAction.Search -> {
+                drawerOpenedForSearch = true
+                appDrawerOpen = true
+            }
+            GestureAction.NextProfile -> viewModel.cycleProfile(forward = true)
+            GestureAction.PreviousProfile -> viewModel.cycleProfile(forward = false)
+            GestureAction.DefaultProfile -> viewModel.setActiveProfile(BuiltInProfiles.DEFAULT_ID)
+            GestureAction.Profiles -> onOpenProfiles()
+            GestureAction.Settings -> onOpenSettings()
+        }
+    }
 
     // Lowest-priority handler: composed first, so any sheet/menu opened below
     // registers its own BackHandler afterward and takes back over this one while
@@ -169,14 +193,16 @@ fun LauncherHomeScreen(
             // outer Box rather than the grid: a scrollable grid consumes vertical
             // drags itself, and the empty part of the home screen is where the gesture
             // is made anyway.
-            .pointerInput(Unit) {
+            .pointerInput(gestures) {
                 var travelled = 0f
                 detectVerticalDragGestures(
                     onDragStart = { travelled = 0f },
                     onDragEnd = {
-                        if (travelled < -swipeThresholdPx) {
-                            drawerOpenedForSearch = false
-                            appDrawerOpen = true
+                        // Both directions now, and both bindable. Only left and right
+                        // are not — see LauncherGesture, the pager owns that axis.
+                        when {
+                            travelled < -swipeThresholdPx -> runGesture(LauncherGesture.SwipeUp)
+                            travelled > swipeThresholdPx -> runGesture(LauncherGesture.SwipeDown)
                         }
                     }
                 ) { _, delta -> travelled += delta }
@@ -184,8 +210,13 @@ fun LauncherHomeScreen(
             // Long-pressing the wallpaper is where widgets and the grid size live. It
             // only fires on empty space: an icon's own detector consumes the press
             // first, and this ancestor never sees it.
-            .pointerInput(Unit) {
-                detectTapGestures(onLongPress = { homeOptionsOpen = true })
+            .pointerInput(gestures) {
+                detectTapGestures(
+                    onLongPress = { homeOptionsOpen = true },
+                    // Unbound by default: a double tap is the gesture people trigger by
+                    // accident, so it does nothing until they ask it to.
+                    onDoubleTap = { runGesture(LauncherGesture.DoubleTap) }
+                )
             }
     ) {
         Column(
@@ -331,6 +362,7 @@ fun LauncherHomeScreen(
                     usageCountByKey = uiState.usageCountByKey,
                     sortMode = uiState.drawerSortMode,
                     categoryBarVisible = uiState.categoryBarVisible,
+                    columns = uiState.drawerColumns,
                     viewModel = viewModel,
                     autoFocusSearch = drawerOpenedForSearch,
                     onLaunch = { app ->

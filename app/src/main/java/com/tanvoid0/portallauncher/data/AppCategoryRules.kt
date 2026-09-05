@@ -42,6 +42,31 @@ object AppCategoryRules {
         // Gaming
         { pkg: String -> pkg.contains("game") || pkg.contains("play.games") } to AppCategory.Gaming,
         { pkg: String -> pkg.contains("epic") || pkg.contains("steam") || pkg.contains("xbox") } to AppCategory.Gaming,
+        // Internet. Browsers are the single biggest thing the old list could not place,
+        // and the one Play's installer override most reliably mislabels as social.
+        { pkg: String -> pkg.contains("chrome") || pkg.contains("firefox") || pkg.contains("browser") } to AppCategory.Internet,
+        { pkg: String -> pkg.contains("opera") || pkg.contains("brave") || pkg.contains("duckduckgo") } to AppCategory.Internet,
+        // Edge's package is "microsoft.emmx", not "edge" — and matching "edge" catches
+        // Google's Edge Gallery, which is an AI demo app, not a browser.
+        { pkg: String -> pkg.contains("microsoft.emmx") || pkg.contains("samsunginternet") || pkg.contains("sbrowser") } to AppCategory.Internet,
+        // Media
+        { pkg: String -> pkg.contains("spotify") || pkg.contains("youtube") || pkg.contains("netflix") } to AppCategory.Media,
+        { pkg: String -> pkg.contains("music") || pkg.contains("podcast") || pkg.contains("audible") } to AppCategory.Media,
+        // "plex" as a substring also matches Perplexity. The package, not the word.
+        { pkg: String -> pkg.contains("disney") || pkg.contains("primevideo") || pkg.contains("com.plexapp") } to AppCategory.Media,
+        { pkg: String -> pkg.contains("gallery") || pkg.contains("photos") || pkg.contains("camera") } to AppCategory.Media,
+        // Shopping
+        { pkg: String -> pkg.contains("amazon") || pkg.contains("ebay") || pkg.contains("etsy") } to AppCategory.Shopping,
+        { pkg: String -> pkg.contains("aliexpress") || pkg.contains("alibaba") || pkg.contains("temu") } to AppCategory.Shopping,
+        { pkg: String -> pkg.contains("tesco") || pkg.contains("sainsbury") || pkg.contains("asda") } to AppCategory.Shopping,
+        { pkg: String -> pkg.contains("shop") || pkg.contains("grocery") || pkg.contains("deliveroo") } to AppCategory.Shopping,
+        // Utilities. Last of the new buckets on purpose — "vpn", "authenticator" and
+        // "files" are specific, but this is the bucket that would swallow everything if
+        // it were allowed broad keywords, so it gets none.
+        { pkg: String -> pkg.contains("vpn") || pkg.contains("authenticator") || pkg.contains("2fa") } to AppCategory.Utilities,
+        { pkg: String -> pkg.contains("antivirus") || pkg.contains("avast") || pkg.contains("bitwarden") } to AppCategory.Utilities,
+        { pkg: String -> pkg.contains("filemanager") || pkg.contains("documentsui") || pkg.contains("calculator") } to AppCategory.Utilities,
+        { pkg: String -> pkg.contains("settings") || pkg.contains("clock") || pkg.contains("deskclock") } to AppCategory.Utilities,
     )
 
     fun categoryFor(packageName: String): AppCategory {

@@ -11,6 +11,10 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WorkOutline
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppCategory
@@ -28,6 +32,10 @@ val AppCategory.labelRes: Int
         AppCategory.Social -> R.string.category_social
         AppCategory.Productivity -> R.string.category_productivity
         AppCategory.Gaming -> R.string.category_gaming
+        AppCategory.Internet -> R.string.category_internet
+        AppCategory.Media -> R.string.category_media
+        AppCategory.Shopping -> R.string.category_shopping
+        AppCategory.Utilities -> R.string.category_utilities
         AppCategory.Wellness -> R.string.category_wellness
         AppCategory.Driving -> R.string.category_driving
         AppCategory.Other -> R.string.category_other
@@ -88,6 +96,10 @@ val AppCategory.icon: ImageVector
         AppCategory.Social -> Icons.Default.Forum
         AppCategory.Productivity -> Icons.Default.WorkOutline
         AppCategory.Gaming -> Icons.Default.SportsEsports
+        AppCategory.Internet -> Icons.Default.Public
+        AppCategory.Media -> Icons.Default.PlayCircleOutline
+        AppCategory.Shopping -> Icons.Default.ShoppingBag
+        AppCategory.Utilities -> Icons.Default.Build
         AppCategory.Wellness -> Icons.Default.FavoriteBorder
         AppCategory.Driving -> Icons.Default.DirectionsCar
         AppCategory.Other -> Icons.Default.Apps

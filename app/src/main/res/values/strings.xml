@@ -25,6 +25,7 @@
          plural would translate a grammatical case that can never occur. -->
     <string name="grid_size">%1$d × %2$d</string>
     <string name="rows">Rows</string>
+    <string name="columns">Columns</string>
     <string name="rows_subtitle">Taller cells fit fewer, larger icons</string>
     <string name="reset_home">Reset home screen</string>
     <string name="reset_home_subtitle">Back to this profile\'s categories. Removes its widgets.</string>
@@ -38,6 +39,20 @@
     <!-- Appearance -->
     <string name="settings_appearance">Appearance</string>
     <string name="settings_system">System</string>
+
+    <!-- Gestures -->
+    <string name="settings_gestures">Gestures</string>
+    <string name="gesture_swipe_up">Swipe up</string>
+    <string name="gesture_swipe_down">Swipe down</string>
+    <string name="gesture_double_tap">Double tap</string>
+    <string name="gesture_action_none">Nothing</string>
+    <string name="gesture_action_app_drawer">Open the app drawer</string>
+    <string name="gesture_action_search">Search apps</string>
+    <string name="gesture_action_next_profile">Next profile</string>
+    <string name="gesture_action_previous_profile">Previous profile</string>
+    <string name="gesture_action_default_profile">Switch to All apps</string>
+    <string name="gesture_action_profiles">Open Profiles</string>
+    <string name="gesture_action_settings">Open Settings</string>
     <string name="wallpaper">Wallpaper</string>
     <string name="wallpaper_subtitle">Open the system wallpaper picker</string>
     <string name="theme">Theme</string>
@@ -65,6 +80,10 @@
     <string name="category_social">Social</string>
     <string name="category_productivity">Productivity</string>
     <string name="category_gaming">Gaming</string>
+    <string name="category_internet">Internet</string>
+    <string name="category_media">Media</string>
+    <string name="category_shopping">Shopping</string>
+    <string name="category_utilities">Utilities</string>
     <string name="category_wellness">Wellness</string>
     <string name="category_driving">Driving</string>
     <string name="category_other">Everything else</string>

@@ -10,6 +10,9 @@ import com.tanvoid0.portallauncher.ai.AiStatus
 import com.tanvoid0.portallauncher.data.AiCategoryEntity
 import com.tanvoid0.portallauncher.data.AppCategorizer
 import com.tanvoid0.portallauncher.data.BackupCodec
+import com.tanvoid0.portallauncher.data.DEFAULT_GESTURE_ACTIONS
+import com.tanvoid0.portallauncher.data.GestureAction
+import com.tanvoid0.portallauncher.data.LauncherGesture
 import com.tanvoid0.portallauncher.data.ColorSource
 import com.tanvoid0.portallauncher.data.ThemeMode
 import com.tanvoid0.portallauncher.ui.kit.IconShape
@@ -72,6 +75,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     val homeLabels: StateFlow<Boolean> = preferences.homeLabels
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    val gestureActions: StateFlow<Map<LauncherGesture, GestureAction>> =
+        preferences.gestureActions.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            DEFAULT_GESTURE_ACTIONS
+        )
+
+    fun setGestureAction(gesture: LauncherGesture, action: GestureAction) {
+        viewModelScope.launch { preferences.setGestureAction(gesture, action) }
+    }
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { preferences.setThemeMode(mode) }

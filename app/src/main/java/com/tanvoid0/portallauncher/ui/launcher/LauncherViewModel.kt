@@ -14,6 +14,11 @@ import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
 import com.tanvoid0.portallauncher.data.HomeEntry
 import com.tanvoid0.portallauncher.data.LaunchableApp
+import com.tanvoid0.portallauncher.data.DEFAULT_GESTURE_ACTIONS
+import com.tanvoid0.portallauncher.data.GestureAction
+import com.tanvoid0.portallauncher.data.LauncherGesture
+import com.tanvoid0.portallauncher.data.neighbourProfileId
+import com.tanvoid0.portallauncher.data.PreferencesRepository
 import com.tanvoid0.portallauncher.data.ProfileEntity
 import com.tanvoid0.portallauncher.data.Slot
 import com.tanvoid0.portallauncher.data.applyOverrides
@@ -86,7 +91,9 @@ data class LauncherUiState(
     /** Launch count per app key, for [DrawerSortMode.MOST_USED]. Absent means never launched. */
     val usageCountByKey: Map<String, Int> = emptyMap(),
     /** Whether the home grid draws a name under each icon. The drawer always does. */
-    val homeLabels: Boolean = true
+    val homeLabels: Boolean = true,
+    /** Columns in the drawer's grid. The home grid has its own, in [grid]. */
+    val drawerColumns: Int = PreferencesRepository.DEFAULT_DRAWER_COLUMNS
 )
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -163,16 +170,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         preferencesRepository.drawerSortMode,
         preferencesRepository.categoryBarVisible,
         usageCountByKeyFlow,
-        preferencesRepository.homeLabels
-    ) { sortMode, categoryBarVisible, usageCountByKey, homeLabels ->
-        DrawerPrefs(sortMode, categoryBarVisible, usageCountByKey, homeLabels)
+        preferencesRepository.homeLabels,
+        preferencesRepository.drawerColumns
+    ) { sortMode, categoryBarVisible, usageCountByKey, homeLabels, drawerColumns ->
+        DrawerPrefs(sortMode, categoryBarVisible, usageCountByKey, homeLabels, drawerColumns)
     }
+
+    /** Kept out of the ui state: only the home screen's gesture handlers read it. */
+    val gestureActions: StateFlow<Map<LauncherGesture, GestureAction>> =
+        preferencesRepository.gestureActions.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DEFAULT_GESTURE_ACTIONS
+        )
 
     private data class DrawerPrefs(
         val sortMode: DrawerSortMode,
         val categoryBarVisible: Boolean,
         val usageCountByKey: Map<String, Int>,
-        val homeLabels: Boolean
+        val homeLabels: Boolean,
+        val drawerColumns: Int
     )
 
     /**
@@ -262,7 +279,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             drawerSortMode = prefs.sortMode,
             categoryBarVisible = prefs.categoryBarVisible,
             usageCountByKey = prefs.usageCountByKey,
-            homeLabels = prefs.homeLabels
+            homeLabels = prefs.homeLabels,
+            drawerColumns = prefs.drawerColumns
         )
     }.stateIn(
         scope = viewModelScope,
@@ -293,6 +311,24 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun setDrawerSortMode(mode: DrawerSortMode) {
         viewModelScope.launch { preferencesRepository.setDrawerSortMode(mode) }
+    }
+
+    /**
+     * Moves to the next or previous profile in the list the home screen already shows,
+     * so a gesture lands on the same order the chip row is in.
+     */
+    fun cycleProfile(forward: Boolean) {
+        val state = uiState.value
+        val target = neighbourProfileId(
+            profileIds = state.profiles.map { it.id },
+            activeId = state.activeProfile?.id,
+            forward = forward
+        ) ?: return
+        setActiveProfile(target)
+    }
+
+    fun setDrawerColumns(columns: Int) {
+        viewModelScope.launch { preferencesRepository.setDrawerColumns(columns) }
     }
 
     fun setCategoryBarVisible(visible: Boolean) {

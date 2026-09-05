@@ -71,4 +71,27 @@ class AppCategoryRulesTest {
         // whose package happens to contain a keyword.
         assertEquals(AppCategory.Gaming, AppCategoryRules.categoryFor("com.acme.gamesetup"))
     }
+
+    @Test
+    fun `a keyword does not swallow an unrelated package`() {
+        // Both found on the test device: "plex" matched Perplexity and "edge" matched
+        // Google's Edge Gallery. Broad keywords are the failure mode of this file, and
+        // these two pin the specific ones that went wrong.
+        assertEquals(AppCategory.Other, AppCategoryRules.categoryFor("ai.perplexity.app.android"))
+        assertEquals(
+            AppCategory.Media,
+            AppCategoryRules.categoryFor("com.plexapp.android")
+        )
+        assertEquals(
+            AppCategory.Internet,
+            AppCategoryRules.categoryFor("com.microsoft.emmx")
+        )
+        // Edge Gallery is not a browser any more. It still reads as Media, on "gallery"
+        // — an app called that is a fair guess, and the user override is the answer for
+        // the ones a keyword list will always get wrong.
+        assertEquals(
+            AppCategory.Media,
+            AppCategoryRules.categoryFor("com.google.ai.edge.gallery")
+        )
+    }
 }

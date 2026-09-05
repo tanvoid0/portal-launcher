@@ -47,6 +47,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import com.tanvoid0.portallauncher.data.GestureAction
+import com.tanvoid0.portallauncher.data.LauncherGesture
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.ai.AiStatus
 import com.tanvoid0.portallauncher.ui.assistant.AiAssistantSheet
@@ -71,6 +83,9 @@ fun SettingsScreen(
     val colorSource by viewModel.colorSource.collectAsStateWithLifecycle()
     val iconShape by viewModel.iconShape.collectAsStateWithLifecycle()
     val homeLabels by viewModel.homeLabels.collectAsStateWithLifecycle()
+    val gestureActions by viewModel.gestureActions.collectAsStateWithLifecycle()
+    // Which gesture's action picker is open, if any.
+    var bindingGesture by remember { mutableStateOf<LauncherGesture?>(null) }
     var showAssistant by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -240,6 +255,17 @@ fun SettingsScreen(
                     }
                 )
             }
+            PortalGroup(title = stringResource(R.string.settings_gestures)) {
+                LauncherGesture.entries.forEach { gesture ->
+                    val action = gestureActions[gesture] ?: GestureAction.None
+                    PortalRow(
+                        title = stringResource(gesture.labelRes),
+                        subtitle = stringResource(action.labelRes),
+                        icon = gesture.icon,
+                        onClick = { bindingGesture = gesture }
+                    )
+                }
+            }
             PortalGroup(title = stringResource(R.string.settings_system)) {
                 // The way back if the user ever points home at another launcher. There
                 // was none: setup asked once and settings never mentioned it again.
@@ -289,7 +315,96 @@ fun SettingsScreen(
     if (showAssistant) {
         AiAssistantSheet(onDismiss = { showAssistant = false })
     }
+
+    bindingGesture?.let { gesture ->
+        GestureActionPicker(
+            gesture = gesture,
+            selected = gestureActions[gesture] ?: GestureAction.None,
+            onSelect = { action ->
+                viewModel.setGestureAction(gesture, action)
+                bindingGesture = null
+            },
+            onDismiss = { bindingGesture = null }
+        )
+    }
 }
+
+/**
+ * One gesture, every action it can be bound to.
+ *
+ * A dialog rather than the reference launcher's own full screen: Portal's action list
+ * is eight entries with no sub-tabs. That screen exists there because it also lists
+ * every installed app and every app shortcut, which Portal does not offer as gesture
+ * targets.
+ */
+@Composable
+private fun GestureActionPicker(
+    gesture: LauncherGesture,
+    selected: GestureAction,
+    onSelect: (GestureAction) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(gesture.labelRes)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .selectableGroup()
+            ) {
+                GestureAction.entries.forEach { action ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = action == selected,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(action) }
+                            )
+                            .padding(vertical = Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        RadioButton(selected = action == selected, onClick = null)
+                        Text(stringResource(action.labelRes))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+@get:StringRes
+private val LauncherGesture.labelRes: Int
+    get() = when (this) {
+        LauncherGesture.SwipeUp -> R.string.gesture_swipe_up
+        LauncherGesture.SwipeDown -> R.string.gesture_swipe_down
+        LauncherGesture.DoubleTap -> R.string.gesture_double_tap
+    }
+
+private val LauncherGesture.icon: ImageVector
+    get() = when (this) {
+        LauncherGesture.SwipeUp -> Icons.Default.KeyboardArrowUp
+        LauncherGesture.SwipeDown -> Icons.Default.KeyboardArrowDown
+        LauncherGesture.DoubleTap -> Icons.Default.TouchApp
+    }
+
+@get:StringRes
+private val GestureAction.labelRes: Int
+    get() = when (this) {
+        GestureAction.None -> R.string.gesture_action_none
+        GestureAction.AppDrawer -> R.string.gesture_action_app_drawer
+        GestureAction.Search -> R.string.gesture_action_search
+        GestureAction.NextProfile -> R.string.gesture_action_next_profile
+        GestureAction.PreviousProfile -> R.string.gesture_action_previous_profile
+        GestureAction.DefaultProfile -> R.string.gesture_action_default_profile
+        GestureAction.Profiles -> R.string.gesture_action_profiles
+        GestureAction.Settings -> R.string.gesture_action_settings
+    }
 
 private fun aiSummaryRes(status: AiStatus, enabled: Boolean, working: Boolean): Int = when {
     working -> R.string.ai_working

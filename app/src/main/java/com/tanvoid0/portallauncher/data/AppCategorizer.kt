@@ -56,9 +56,9 @@ object AppCategorizer {
         categoryFor(app, emptyMap()) == AppCategory.Other
 
     /**
-     * Only the system categories that map onto a profile without argument. NEWS,
-     * AUDIO, VIDEO and IMAGE have no honest equivalent in [AppCategory], so they
-     * fall through rather than being forced into a bucket.
+     * Only the system categories that map onto a profile without argument. NEWS is
+     * the one left with no honest equivalent in [AppCategory], so it falls through
+     * rather than being forced into a bucket; AUDIO, VIDEO and IMAGE now have one.
      *
      * MAPS does have one now that [AppCategory.Driving] exists: a navigation app is
      * the one thing every driving profile needs.
@@ -77,6 +77,9 @@ object AppCategorizer {
         ApplicationInfo.CATEGORY_GAME -> AppCategory.Gaming
         ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategory.Productivity
         ApplicationInfo.CATEGORY_MAPS -> AppCategory.Driving
+        ApplicationInfo.CATEGORY_AUDIO,
+        ApplicationInfo.CATEGORY_VIDEO,
+        ApplicationInfo.CATEGORY_IMAGE -> AppCategory.Media
         else -> null
     }
 }

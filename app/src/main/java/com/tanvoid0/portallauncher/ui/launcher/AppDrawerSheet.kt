@@ -61,6 +61,9 @@ import android.net.Uri
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Shop
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material3.OutlinedButton
+import com.tanvoid0.portallauncher.data.PreferencesRepository
 import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AppCategory
 import com.tanvoid0.portallauncher.data.DrawerSortMode
@@ -74,7 +77,7 @@ import com.tanvoid0.portallauncher.ui.kit.SectionHeader
 import com.tanvoid0.portallauncher.ui.kit.SelectableRow
 import com.tanvoid0.portallauncher.ui.kit.Spacing
 
-private val DRAWER_MIN_CELL = 80.dp
+
 
 /**
  * The drawer, which is also the search surface.
@@ -95,6 +98,7 @@ fun AppDrawerSheet(
     usageCountByKey: Map<String, Int>,
     sortMode: DrawerSortMode,
     categoryBarVisible: Boolean,
+    columns: Int,
     viewModel: LauncherViewModel,
     autoFocusSearch: Boolean,
     onLaunch: (LaunchableApp) -> Unit,
@@ -136,6 +140,8 @@ fun AppDrawerSheet(
             onSortModeChange = viewModel::setDrawerSortMode,
             categoryBarVisible = categoryBarVisible,
             onCategoryBarVisibleChange = viewModel::setCategoryBarVisible,
+            columns = columns,
+            onColumnsChange = viewModel::setDrawerColumns,
             onOpenHiddenApps = {
                 showOptions = false
                 onOpenHiddenApps()
@@ -214,7 +220,10 @@ fun AppDrawerSheet(
         }
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = DRAWER_MIN_CELL),
+            // Fixed, not Adaptive: the count is the user's now. Adaptive worked out a
+            // number from an 80dp minimum cell and gave no way to ask for a different
+            // one, which is the whole of the reference launcher's grid-properties screen.
+            columns = GridCells.Fixed(columns),
             contentPadding = PaddingValues(
                 start = Spacing.lg,
                 end = Spacing.lg,
@@ -376,6 +385,8 @@ private fun DrawerOptionsSheet(
     onSortModeChange: (DrawerSortMode) -> Unit,
     categoryBarVisible: Boolean,
     onCategoryBarVisibleChange: (Boolean) -> Unit,
+    columns: Int,
+    onColumnsChange: (Int) -> Unit,
     onOpenHiddenApps: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -414,6 +425,23 @@ private fun DrawerOptionsSheet(
                             checked = categoryBarVisible,
                             onCheckedChange = onCategoryBarVisibleChange
                         )
+                    }
+                )
+                PortalRow(
+                    icon = Icons.Default.GridView,
+                    title = stringResource(R.string.columns),
+                    subtitle = columns.toString(),
+                    trailing = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            OutlinedButton(
+                                onClick = { onColumnsChange(columns - 1) },
+                                enabled = columns > PreferencesRepository.MIN_COLUMNS
+                            ) { Text("−") }
+                            OutlinedButton(
+                                onClick = { onColumnsChange(columns + 1) },
+                                enabled = columns < PreferencesRepository.MAX_COLUMNS
+                            ) { Text("+") }
+                        }
                     }
                 )
                 PortalRow(

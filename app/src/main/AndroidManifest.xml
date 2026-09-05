@@ -66,6 +66,18 @@
         android:name="android.permission.WRITE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <!--
+      GreyscaleAutomation's device-wide half. signature|privileged, so this declaration
+      alone never grants it and the app works without it (the in-app colour filter is
+      unaffected). It exists so the user can grant it themselves over ADB:
+        adb shell pm grant <package> android.permission.WRITE_SECURE_SETTINGS
+      pm grant refuses a permission the manifest does not declare, so removing this line
+      makes whole-device greyscale ungrantable.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
     <application
         android:name=".PortalLauncherApplication"
         android:allowBackup="true"

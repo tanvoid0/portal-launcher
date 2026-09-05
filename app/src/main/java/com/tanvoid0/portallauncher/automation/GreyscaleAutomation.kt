@@ -1,7 +1,10 @@
 package com.tanvoid0.portallauncher.automation
 
+import android.Manifest
+import android.content.ContentResolver
 import android.content.Context
-import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.provider.Settings
@@ -15,19 +18,22 @@ import com.tanvoid0.portallauncher.R
 import com.tanvoid0.portallauncher.data.AutomationIds
 
 /**
- * Drains the colour out of the launcher's own UI.
+ * Drains the colour out of the screen.
  *
- * **This is deliberately not device-wide, because device-wide is not possible.** The
- * system daltonizer needs `WRITE_SECURE_SETTINGS`, which is `signature|privileged` and
- * not grantable to a normal app; a `SYSTEM_ALERT_WINDOW` overlay composites *on top of*
- * other windows and cannot apply a colour matrix to the pixels beneath it; and
- * `AccessibilityService` has no colour-transform capability. Any launcher claiming
- * otherwise is either system-signed or asking for an ADB grant.
+ * Two layers, because one of them needs something we cannot grant ourselves:
  *
- * So this automation does the part that is honest and free: the home screen is the
- * surface that triggers a distraction, and greying it out is most of the value. For the
- * whole device, [systemGreyscaleIntent] sends the user to the developer-options
- * monochromacy toggle — three taps they perform themselves, with nothing to grant.
+ * 1. **The launcher's own window**, always. [Modifier.greyscale] is a draw-time colour
+ *    filter, so it needs no permission — but it only covers the composition it wraps.
+ *    Not the wallpaper (the system draws that *behind* our transparent window) and not
+ *    dialogs, dropdowns or bottom sheets, which Compose puts in windows of their own.
+ * 2. **The whole device**, when [hasSecureSettings]. The system daltonizer set to
+ *    monochromacy greys everything the display shows, including other apps. It lives in
+ *    `Settings.Secure`, which needs `WRITE_SECURE_SETTINGS` — a `signature|privileged`
+ *    permission no app can request at runtime, but one the user can grant themselves
+ *    over ADB with [adbGrantCommand]. One command, once, survives reboots.
+ *
+ * `AccessibilityService` is not a way around this: it has no colour-transform
+ * capability. Granting accessibility access buys nothing here.
  */
 class GreyscaleAutomation : Automation {
 
@@ -38,30 +44,81 @@ class GreyscaleAutomation : Automation {
     override val summaryRes: Int = R.string.greyscale_summary
 
     /**
-     * Always ready: it is a draw-time filter on our own window, so there is no
-     * permission and no OS version that can refuse it.
+     * Always ready. Without the ADB grant this still greys the launcher's own screens,
+     * so it is never a dead switch — [hasSecureSettings] is what the editor uses to say
+     * how far the greyscale actually reaches.
      */
     override fun availability(context: Context): AutomationAvailability =
         AutomationAvailability.Ready
 
-    // Nothing to do here — see the class docs. The value is read at draw time by
-    // Modifier.greyscale rather than pushed into a system service, so applying is a
-    // state change the UI observes, not a side effect this class performs.
-    override suspend fun apply(context: Context, configJson: String?) = Unit
+    override suspend fun apply(context: Context, configJson: String?) {
+        // The in-app filter is read at draw time by Modifier.greyscale, not pushed
+        // anywhere — so all this has to do is the device-wide half.
+        if (!hasSecureSettings(context)) return
+        val resolver = context.contentResolver
+        val prefs = prefs(context)
+        // Save what was there before we are the ones who set it — someone running
+        // deuteranomaly correction must get it back on revert, not be left with the
+        // daltonizer off. Guarded on absence so a re-apply (the engine is idempotent,
+        // and a switch can be interrupted) does not overwrite the real previous state
+        // with our own monochromacy.
+        if (!prefs.contains(KEY_PREV_ENABLED)) {
+            prefs.edit()
+                .putInt(KEY_PREV_ENABLED, secureInt(resolver, ENABLED, 0))
+                .putInt(KEY_PREV_MODE, secureInt(resolver, MODE, MODE_DISABLED))
+                .apply()
+        }
+        Settings.Secure.putInt(resolver, MODE, MODE_MONOCHROMACY)
+        Settings.Secure.putInt(resolver, ENABLED, 1)
+    }
 
-    override suspend fun revert(context: Context) = Unit
+    override suspend fun revert(context: Context) {
+        if (!hasSecureSettings(context)) return
+        val prefs = prefs(context)
+        // Nothing saved means we never turned it on — leave the user's setting alone.
+        if (!prefs.contains(KEY_PREV_ENABLED)) return
+        val resolver = context.contentResolver
+        Settings.Secure.putInt(resolver, MODE, prefs.getInt(KEY_PREV_MODE, MODE_DISABLED))
+        Settings.Secure.putInt(resolver, ENABLED, prefs.getInt(KEY_PREV_ENABLED, 0))
+        prefs.edit().remove(KEY_PREV_ENABLED).remove(KEY_PREV_MODE).apply()
+    }
 
     companion object {
+        /** `Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED` — not public API. */
+        private const val ENABLED = "accessibility_display_daltonizer_enabled"
+
+        /** `Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER` — not public API. */
+        private const val MODE = "accessibility_display_daltonizer"
+
+        /** `AccessibilityManager.DALTONIZER_CORRECT_DEUTERANOMALY` and friends: 0 is grey. */
+        private const val MODE_MONOCHROMACY = 0
+
+        private const val MODE_DISABLED = -1
+
+        private const val PREFS = "greyscale_daltonizer"
+        private const val KEY_PREV_ENABLED = "previous_enabled"
+        private const val KEY_PREV_MODE = "previous_mode"
+
+        /** Whether the ADB grant has been done, i.e. whether we can grey the whole device. */
+        fun hasSecureSettings(context: Context): Boolean =
+            context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
+                PackageManager.PERMISSION_GRANTED
+
         /**
-         * Developer options, where "Simulate colour space → Monochromacy" lives.
+         * The one command the user runs from a computer with the phone plugged in.
          *
-         * Not a promise that it will work: developer options can be locked down by
-         * policy, and the sub-setting cannot be deep-linked. Callers must handle
-         * [android.content.ActivityNotFoundException] and say so rather than appearing
-         * to do nothing.
+         * Package name comes from the context rather than a literal so debug builds with
+         * an application id suffix print a command that actually works.
          */
-        fun systemGreyscaleIntent(): Intent =
-            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+        fun adbGrantCommand(context: Context): String =
+            "adb shell pm grant ${context.packageName} " +
+                "android.permission.WRITE_SECURE_SETTINGS"
+
+        private fun prefs(context: Context): SharedPreferences =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+        private fun secureInt(resolver: ContentResolver, key: String, default: Int): Int =
+            Settings.Secure.getInt(resolver, key, default)
     }
 }
 

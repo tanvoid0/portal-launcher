@@ -48,11 +48,17 @@ class AppCategorizerTest {
     @Test
     fun `a declared social app is not taken at its word`() {
         // Play's installer override writes CATEGORY_SOCIAL onto browsers, VPNs and
-        // shopping apps. Unplaced is the honest answer; the real social apps are all
-        // in the keyword rules, which run first.
+        // shopping apps. The rules run first and know what a browser is; the real
+        // social apps are in the rules too.
+        assertEquals(
+            AppCategory.Internet,
+            AppCategorizer.categoryFor(ApplicationInfo.CATEGORY_SOCIAL, "com.android.chrome", emptyMap())
+        )
+        // And with no rule to catch it, an installer-declared social app is left
+        // unplaced rather than believed.
         assertEquals(
             AppCategory.Other,
-            AppCategorizer.categoryFor(ApplicationInfo.CATEGORY_SOCIAL, "com.android.chrome", emptyMap())
+            AppCategorizer.categoryFor(ApplicationInfo.CATEGORY_SOCIAL, "com.example.mystery", emptyMap())
         )
         assertEquals(
             AppCategory.Social,

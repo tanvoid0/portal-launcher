@@ -82,6 +82,10 @@ private val KEY_CATEGORY_BAR_VISIBLE = booleanPreferencesKey("drawer_category_ba
 private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
 private val KEY_COLOR_SOURCE = stringPreferencesKey("color_source")
 private val KEY_ICON_SHAPE = stringPreferencesKey("icon_shape")
+private val KEY_DRAWER_COLUMNS = intPreferencesKey("drawer_columns")
+
+/** One key per gesture, named from its own id, so adding a gesture adds no migration. */
+private fun gestureKey(gesture: LauncherGesture) = stringPreferencesKey("gesture_${gesture.id}")
 private val KEY_HOME_LABELS = booleanPreferencesKey("home_labels")
 
 /** How the drawer orders apps within a section (or across all of them, ungrouped). */
@@ -158,6 +162,40 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setIconShape(shape: IconShape) {
         context.dataStore.edit { prefs -> prefs[KEY_ICON_SHAPE] = shape.name }
+    }
+
+    /**
+     * How many columns the drawer's grid uses.
+     *
+     * Clamped on read for the same reason [homeGrid] is — a preferences file survives
+     * downgrades and restores, and a zero here divides the drawer's width by zero.
+     */
+    val drawerColumns: Flow<Int> = context.dataStore.data.map { prefs ->
+        (prefs[KEY_DRAWER_COLUMNS] ?: DEFAULT_DRAWER_COLUMNS).coerceIn(MIN_COLUMNS, MAX_COLUMNS)
+    }
+
+    suspend fun setDrawerColumns(columns: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_DRAWER_COLUMNS] = columns.coerceIn(MIN_COLUMNS, MAX_COLUMNS)
+        }
+    }
+
+    /**
+     * What each home-screen gesture is bound to. Always complete — an unset or
+     * unrecognised value falls back to that gesture's default rather than being absent,
+     * so callers never handle a missing key.
+     */
+    val gestureActions: Flow<Map<LauncherGesture, GestureAction>> =
+        context.dataStore.data.map { prefs ->
+            LauncherGesture.entries.associateWith { gesture ->
+                prefs[gestureKey(gesture)]
+                    ?.let { GestureAction.fromId(it) }
+                    ?: DEFAULT_GESTURE_ACTIONS.getValue(gesture)
+            }
+        }
+
+    suspend fun setGestureAction(gesture: LauncherGesture, action: GestureAction) {
+        context.dataStore.edit { prefs -> prefs[gestureKey(gesture)] = action.id }
     }
 
     /** Whether home-screen cells show a label under the icon. */
@@ -283,6 +321,9 @@ class PreferencesRepository(private val context: Context) {
          * the high end is where a 48dp icon plus its label stops being a comfortable
          * touch target on a phone.
          */
+        /** What the drawer used to work out for itself from an 80dp minimum cell. */
+        const val DEFAULT_DRAWER_COLUMNS = 4
+
         const val MIN_COLUMNS = 3
         const val MAX_COLUMNS = 6
         const val MIN_ROWS = 3

@@ -42,6 +42,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
 import com.tanvoid0.portallauncher.PortalLauncherApplication
 import com.tanvoid0.portallauncher.R
+import com.tanvoid0.portallauncher.automation.greyscale
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
 import com.tanvoid0.portallauncher.data.slot
@@ -49,6 +50,7 @@ import com.tanvoid0.portallauncher.ui.kit.EmptyState
 import com.tanvoid0.portallauncher.ui.kit.PortalGroup
 import com.tanvoid0.portallauncher.ui.kit.PortalRow
 import com.tanvoid0.portallauncher.ui.kit.Spacing
+import com.tanvoid0.portallauncher.ui.theme.LocalGreyscaleSaturation
 import com.tanvoid0.portallauncher.widgets.LauncherWidgetHost
 import com.tanvoid0.portallauncher.widgets.WidgetPlacement
 import kotlinx.coroutines.Dispatchers
@@ -86,9 +88,13 @@ fun WidgetCell(appWidgetId: Int, widthDp: Int, heightDp: Int, modifier: Modifier
         withContext(Dispatchers.IO) { host.reportSize(appWidgetId, widthDp, heightDp) }
     }
 
+    // Greyscale: a hosted widget is a foreign view, so the theme's desaturated colour
+    // scheme never reaches it and it needs the draw-time filter, same as an app icon.
     AndroidView(
         factory = { ctx -> host.createView(ctx, appWidgetId, info) },
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .greyscale(LocalGreyscaleSaturation.current)
     )
 }
 
@@ -237,7 +243,15 @@ private fun WidgetPreview(info: AppWidgetProviderInfo) {
         }
     }
     Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-        bitmap?.let { Image(bitmap = it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+        bitmap?.let {
+            Image(
+                bitmap = it,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .greyscale(LocalGreyscaleSaturation.current)
+            )
+        }
     }
 }
 

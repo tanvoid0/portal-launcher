@@ -35,10 +35,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -413,6 +416,16 @@ private fun PowerSaverSettings(
 @Composable
 private fun GreyscaleSettings(state: ProfileEditState, viewModel: ProfileEditViewModel) {
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    // Re-read on resume: the grant happens over ADB while this screen is open, so the
+    // "run this command" block has to be able to turn into the "it is on" line without
+    // the user hunting for a way to refresh it.
+    var granted by remember { mutableStateOf(GreyscaleAutomation.hasSecureSettings(context)) }
+    LifecycleResumeEffect(Unit) {
+        granted = GreyscaleAutomation.hasSecureSettings(context)
+        onPauseOrDispose { }
+    }
+    var copied by remember { mutableStateOf(false) }
     GroupPanel {
         Text(
             text = stringResource(R.string.intensity),
@@ -422,14 +435,36 @@ private fun GreyscaleSettings(state: ProfileEditState, viewModel: ProfileEditVie
             value = state.greyscale.intensity,
             onValueChange = viewModel::setGreyscaleIntensity
         )
-        TextButton(onClick = {
-            try {
-                context.startActivity(GreyscaleAutomation.systemGreyscaleIntent())
-            } catch (_: ActivityNotFoundException) {
-                // Developer options can be absent or policy-locked; nothing to open.
+        if (granted) {
+            Text(
+                text = stringResource(R.string.system_greyscale_on),
+                style = MaterialTheme.typography.bodySmall
+            )
+        } else {
+            val command = GreyscaleAutomation.adbGrantCommand(context)
+            Text(
+                text = stringResource(R.string.system_greyscale_title),
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                text = stringResource(R.string.system_greyscale_body),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                text = command,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace
+            )
+            TextButton(onClick = {
+                clipboard.setText(AnnotatedString(command))
+                copied = true
+            }) {
+                Text(
+                    stringResource(
+                        if (copied) R.string.command_copied else R.string.copy_command
+                    )
+                )
             }
-        }) {
-            Text(stringResource(R.string.system_greyscale_hint))
         }
     }
 }

@@ -48,6 +48,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -228,6 +234,46 @@ private fun StepButtons(
     }
 }
 
+/**
+ * The illustration a step leads with.
+ *
+ * Steps 2 and 4 were a heading, one button and two-thirds of an empty screen — nothing
+ * to look at and no sense that the step had landed. A single large tinted glyph is the
+ * cheapest thing that fixes that without shipping artwork to keep in sync with the
+ * theme.
+ */
+@Composable
+private fun StepArt(icon: ImageVector, tint: Color = Color.Unspecified) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = Spacing.xl),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(STEP_ART_BOX)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (tint == Color.Unspecified) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    tint
+                },
+                modifier = Modifier.size(STEP_ART_ICON)
+            )
+        }
+    }
+}
+
+private val STEP_ART_BOX = 120.dp
+private val STEP_ART_ICON = 56.dp
+
 @Composable
 private fun StepHeader(title: String, body: String) {
     Text(text = title, style = MaterialTheme.typography.headlineMedium)
@@ -278,6 +324,7 @@ private fun HomeAppStep(isDefaultHome: Boolean, onGranted: () -> Unit) {
         if (DefaultHomeStatus.isDefaultHome(context)) onGranted() else roleRequestFailed = true
     }
 
+    StepArt(if (isDefaultHome) Icons.Default.CheckCircle else Icons.Default.Home)
     StepHeader(
         title = stringResource(R.string.home_step_title),
         body = stringResource(R.string.home_step_body)
@@ -353,6 +400,7 @@ private fun ProfileStep(viewModel: SetupViewModel) {
 @Composable
 private fun NotificationsStep(granted: Boolean) {
     val context = LocalContext.current
+    StepArt(if (granted) Icons.Default.CheckCircle else Icons.Default.NotificationsOff)
     StepHeader(
         title = stringResource(R.string.notifications_step_title),
         body = stringResource(R.string.notifications_step_body)
