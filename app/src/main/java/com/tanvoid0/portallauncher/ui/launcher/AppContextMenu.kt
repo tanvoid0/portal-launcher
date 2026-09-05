@@ -2,6 +2,7 @@ package com.tanvoid0.portallauncher.ui.launcher
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,6 +69,12 @@ fun AppContextMenu(
     val resolvedCategory = viewModel.categoryOf(app)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        // Steps back to the action list first — a ModalBottomSheet's own dismiss-on-back
+        // only takes over once neither sub-view is open.
+        BackHandler(enabled = renaming || choosingCategory) {
+            renaming = false
+            choosingCategory = false
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()

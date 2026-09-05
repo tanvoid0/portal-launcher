@@ -1,5 +1,6 @@
 package com.tanvoid0.portallauncher.ui.launcher
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -103,6 +104,9 @@ fun AppDrawerSheet(
 
     val searchResults = remember(apps, query.value) { searchApps(query.value, apps) }
     val searching = query.value.isNotBlank()
+    // Clears the search first — losing what you typed along with the drawer itself
+    // would make "go back" behave like "start over".
+    BackHandler(enabled = searching) { query.value = "" }
     // Search ranking already means something (best match first); the sort toggle only
     // applies once the user is browsing rather than typing.
     val results = remember(searchResults, searching, sortMode, usageCountByKey) {

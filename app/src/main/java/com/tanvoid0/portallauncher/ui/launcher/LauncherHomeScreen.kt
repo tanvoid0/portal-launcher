@@ -1,5 +1,6 @@
 package com.tanvoid0.portallauncher.ui.launcher
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tanvoid0.portallauncher.R
+import com.tanvoid0.portallauncher.data.BuiltInProfiles
 import com.tanvoid0.portallauncher.data.GridSize
 import com.tanvoid0.portallauncher.data.HomeCellEntity
 import com.tanvoid0.portallauncher.data.HomeEntry
@@ -131,6 +133,16 @@ fun LauncherHomeScreen(
     // Dock and drawer deliberately ignore the profile filter — see LauncherUiState.
     val dockApps = remember(uiState.allApps) { resolveDockApps(uiState.allApps) }
     val swipeThresholdPx = with(LocalDensity.current) { SWIPE_UP_THRESHOLD.toPx() }
+
+    // Lowest-priority handler: composed first, so any sheet/menu opened below
+    // registers its own BackHandler afterward and takes back over this one while
+    // it's open. On the default profile there is nowhere to go — a launcher must
+    // not let back finish its own activity — so it's a no-op, not "no handler".
+    BackHandler {
+        if (uiState.activeProfile?.id != BuiltInProfiles.DEFAULT_ID) {
+            viewModel.setActiveProfile(BuiltInProfiles.DEFAULT_ID)
+        }
+    }
 
     // The system wallpaper shows through the window itself (windowShowWallpaper in
     // Theme.PortalLauncher), so live wallpapers and parallax work and we hold no
@@ -362,6 +374,10 @@ private fun HomeOptionsSheet(
     val sheetState = rememberModalBottomSheetState()
     var choosingWidget by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        // Inside the sheet's own content: a ModalBottomSheet renders in a Dialog with
+        // its own back dispatcher, so this steps back to the options list first and
+        // only falls through to the sheet's own dismiss-on-back once it's disabled.
+        BackHandler(enabled = choosingWidget) { choosingWidget = false }
         if (choosingWidget) {
             WidgetPickerContent(
                 grid = grid,

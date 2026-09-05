@@ -1,5 +1,6 @@
 package com.tanvoid0.portallauncher.ui.launcher
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -22,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +39,7 @@ import com.tanvoid0.portallauncher.data.HomeEntry
 import com.tanvoid0.portallauncher.data.Slot
 import com.tanvoid0.portallauncher.ui.kit.Spacing
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** How far an item has to travel before a long press counts as a drag and not a menu. */
 private const val DRAG_SLOP_CELLS = 0.25f
@@ -74,6 +77,12 @@ fun HomePager(
     // are never a thing the user has to add or tidy up.
     var dragging by remember { mutableStateOf<Slot?>(null) }
     val pagerState = rememberPagerState(pageCount = { pageCount + if (dragging != null) 1 else 0 })
+    val scope = rememberCoroutineScope()
+    // Off the first page, back returns to it rather than falling through to the
+    // enclosing screen's own handler.
+    BackHandler(enabled = pagerState.currentPage != 0) {
+        scope.launch { pagerState.animateScrollToPage(0) }
+    }
 
     BoxWithConstraints(modifier = modifier) {
         val cellWidth = maxWidth / grid.columns
